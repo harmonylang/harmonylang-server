@@ -1,14 +1,18 @@
 import child_process from 'child_process';
 import * as path from "path";
 import {HARMONY_DIR} from "../config";
-import fs from "fs";
+import fs from "fs-extra";
 import express from "express";
 import rimraf from "rimraf";
 
-const HARMONY_SCRIPT = path.join(HARMONY_DIR, "harmony");
-
 function cleanup(namespace: string) {
     rimraf(namespace, err => console.log(err));
+}
+
+function copyCompiler(namespace: string): string {
+    const copiedDirectory = path.join(namespace, "compiler");
+    fs.copySync(HARMONY_DIR, copiedDirectory);
+    return copiedDirectory;
 }
 
 export function runHarmony(
@@ -16,9 +20,10 @@ export function runHarmony(
     filename: string,
     res: express.Response,
 ) {
-    const pathToScriptFromNamespace = path.relative(namespace, HARMONY_SCRIPT);
-    const harmonyFile = path.relative(namespace, filename);
-    child_process.exec(`${pathToScriptFromNamespace} ${harmonyFile}`, {cwd: namespace}, (error, stdout, stderr) => {
+    const copiedHarmonyDirectory = copyCompiler(namespace);
+    const harmonyFile = path.relative(copiedHarmonyDirectory, filename);
+    child_process.exec(`./harmony ${harmonyFile}`,
+        {cwd: copiedHarmonyDirectory}, (error, stdout, stderr) => {
         if (error) {
             cleanup(namespace);
             return res.send({
@@ -27,7 +32,7 @@ export function runHarmony(
             });
         }
         try {
-            const results = JSON.parse(fs.readFileSync(path.join(namespace, "charm.json"), {encoding: 'utf-8'}));
+            const results = JSON.parse(fs.readFileSync(path.join(copiedHarmonyDirectory, "charm.json"), {encoding: 'utf-8'}));
             cleanup(namespace);
             if (results != null && results.issue != null && results.issue != "No issues") {
                 return res.send({
