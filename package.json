@@ -1,9 +1,11 @@
 {
   "name": "server-js",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "./out/index.js",
   "license": "MIT",
   "scripts": {
+    "start": "node ./out/index.js",
+    "prestart": "yarn compile",
     "compile": "tsc -p .",
     "dev": "nodemon --watch 'src/**/*.ts' --ignore 'src/**/*.test.ts' --exec 'ts-node' src/index.ts"
   },
@@ -22,7 +24,6 @@
     "ts-node": "^9.1.1"
   },
   "dependencies": {
-    "@firebase/logger": "^0.2.6",
     "adm-zip": "^0.5.2",
     "body-parser": "^1.19.0",
     "express": "^4.17.1",
