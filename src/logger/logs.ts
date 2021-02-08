@@ -14,46 +14,50 @@ const credentials = {
     auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
 };
 
-const firebaseConfig = {
-    apiKey: "AIzaSyA2rapCh3dOBlHckBh3SfHIqYHEOyvQ0Kc",
-    authDomain: "harmonylang-server.firebaseapp.com",
-    projectId: "harmonylang-server",
-    storageBucket: "harmonylang-server.appspot.com",
-    messagingSenderId: "455127114629",
-    appId: "1:455127114629:web:7a10fe70630010fb3c5aec",
-    measurementId: "G-RBD4SXWPS4",
-    credential: admin.credential.cert(credentials as any)
-};
-
 // Initialize Firebase
-admin.initializeApp(firebaseConfig);
-const firestore = admin.firestore();
-const firestoreLogs = firestore.collection("harmonylang-logs");
+let firestoreLogs: FirebaseFirestore.CollectionReference<FirebaseFirestore.DocumentData> | null = null;
+try {
+    const firebaseConfig = {
+        apiKey: "AIzaSyA2rapCh3dOBlHckBh3SfHIqYHEOyvQ0Kc",
+        authDomain: "harmonylang-server.firebaseapp.com",
+        projectId: "harmonylang-server",
+        storageBucket: "harmonylang-server.appspot.com",
+        messagingSenderId: "455127114629",
+        appId: "1:455127114629:web:7a10fe70630010fb3c5aec",
+        measurementId: "G-RBD4SXWPS4",
+        credential: admin.credential.cert(credentials as any)
+    };
+    admin.initializeApp(firebaseConfig);
+    firestoreLogs = admin.firestore().collection("harmonylang-logs");
+    console.log("Successfully connected to Firebase. Logs will be written");
+} catch (error) {
+    firestoreLogs = null;
+    console.log("Failed to connect to Firebase. Logs will not be written.", error);
+}
 
 export const logClient = {
     INFO(message: string, kv?: Record<string, unknown>) {
-        firestoreLogs.add(Object.assign(kv ?? {}, {
+        firestoreLogs?.add(Object.assign(kv ?? {}, {
             message: message,
             service: "harmonylang-server",
             timestamp: new Date(),
             level: "INFO",
-        })).catch(e => console.log(e));
-        console.log(message);
+        }))?.catch(e => console.log(e));
     },
     WARN(message: string, kv?: Record<string, unknown>) {
-        firestoreLogs.add(Object.assign(kv ?? {}, {
+        firestoreLogs?.add(Object.assign(kv ?? {}, {
             message: message,
             service: "harmonylang-server",
             timestamp: new Date(),
             level: "WARN",
-        })).catch(e => console.log(e));
+        }))?.catch(e => console.log(e));
     },
     ERROR(message: string, kv?: Record<string, unknown>) {
-        firestoreLogs.add(Object.assign(kv ?? {}, {
+        firestoreLogs?.add(Object.assign(kv ?? {}, {
             message: message,
             service: "harmonylang-server",
             timestamp: new Date(),
             level: "ERROR",
-        })).catch(e => console.log(e));
+        }))?.catch(e => console.log(e));
     }
 }
