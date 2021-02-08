@@ -10,7 +10,7 @@ import rimraf from "rimraf";
  * @param namespace
  */
 function cleanup(namespace: string) {
-    rimraf(namespace, err => console.log(err));
+    rimraf(namespace, err => err && console.log(err));
 }
 
 /**

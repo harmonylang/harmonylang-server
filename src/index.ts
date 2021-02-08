@@ -2,7 +2,7 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import generateNamespace from "./genNamespace";
 import fsSync, {promises as fs} from "fs";
-import * as path from "path";
+import path from "path";
 import {UPLOADS_DIR} from "./config";
 import AdmZip from 'adm-zip';
 import {runHarmony} from "./run/runHarmony";
@@ -11,22 +11,20 @@ import multer from 'multer';
 const upload = multer();
 
 const app = express();
+app.disable('x-powered-by');
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: true}));
 
-app.post("/check", upload.any(), async (req, res) => {
+app.post("/check", upload.single("file"), async (req, res) => {
     const {main} = req.body
     if (main == null) {
         return res.status(400).send("No main file was declared");
     }
-    const files = req.files;
-    if (files == null) {
+    const zippedFile = req.file;
+    if (zippedFile == null) {
         return res.status(400).send("No files were uploaded");
     }
     // Ensure there is only file being sent.
-    if (!Array.isArray(files) || files.length != 1) {
-        return res.status(407).send("Invalid file argument");
-    }
     const namespace = generateNamespace((name) => {
         return !fsSync.existsSync(path.join(UPLOADS_DIR, name));
     })
@@ -36,7 +34,6 @@ app.post("/check", upload.any(), async (req, res) => {
     // Create a directory to hold the zip file.
     const zipDirectory = path.join(UPLOADS_DIR, namespace, "zips");
     await fs.mkdir(zipDirectory, {recursive: true});
-    const zippedFile = files[0];
 
     // Write the zip file to the zip directory.
     const filename = path.join(zipDirectory, zippedFile.originalname);
