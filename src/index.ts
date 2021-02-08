@@ -15,7 +15,6 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: true}));
 
 app.post("/check", upload.any(), async (req, res) => {
-    console.log("Ping", req.body);
     const {main} = req.body
     if (main == null) {
         return res.status(400).send("No main file was declared");
@@ -24,24 +23,35 @@ app.post("/check", upload.any(), async (req, res) => {
     if (files == null) {
         return res.status(400).send("No files were uploaded");
     }
+    // Ensure there is only file being sent.
+    if (!Array.isArray(files) || files.length != 1) {
+        return res.status(407).send("Invalid file argument");
+    }
     const namespace = generateNamespace((name) => {
         return !fsSync.existsSync(path.join(UPLOADS_DIR, name));
     })
     if (namespace == null) {
         return res.status(400).send("Your request could not be served at this time. Please try again later");
     }
-    console.log(files);
+    // Create a directory to hold the zip file.
     const zipDirectory = path.join(UPLOADS_DIR, namespace, "zips");
     await fs.mkdir(zipDirectory, {recursive: true});
-    if (!Array.isArray(files) || files.length != 1) {
-        return res.status(407).send("Invalid file argument");
-    }
     const zippedFile = files[0];
+
+    // Write the zip file to the zip directory.
     const filename = path.join(zipDirectory, zippedFile.originalname);
     await fs.writeFile(filename, zippedFile.buffer);
+
+    // Create a directory to extract the source files from the zip into.
     const harmonyDirectory = path.join(UPLOADS_DIR, namespace, "source");
     new AdmZip(filename).extractAllTo(harmonyDirectory);
-    return runHarmony(path.join(UPLOADS_DIR, namespace), path.join(harmonyDirectory, main), res);
+
+    // Run the Harmony model checker.
+    return runHarmony(
+        path.join(UPLOADS_DIR, namespace),
+        path.join(harmonyDirectory, main),
+        res
+    );
 });
 
 const PORT = process.env.PORT || 8080;
