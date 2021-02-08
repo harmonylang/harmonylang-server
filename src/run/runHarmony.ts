@@ -4,13 +4,18 @@ import {HARMONY_DIR} from "../config";
 import fs from "fs-extra";
 import express from "express";
 import rimraf from "rimraf";
+import {logClient} from "../logger/logs";
 
 /**
  * Removes an allocated namespace directory.
  * @param namespace
  */
 function cleanup(namespace: string) {
-    rimraf(namespace, err => err && console.log(err));
+    rimraf(namespace, error => {
+        if (error) {
+            logClient.WARN("Warning: failed to cleanup namespace", {namespace: path.basename(namespace)});
+        }
+    });
 }
 
 /**
@@ -29,7 +34,15 @@ export function runHarmony(
     filename: string,
     res: express.Response,
 ) {
-    const copiedHarmonyDirectory = copyCompiler(namespaceDirectory);
+    let copiedHarmonyDirectory = "";
+    try {
+        copiedHarmonyDirectory = copyCompiler(namespaceDirectory);
+    } catch (error) {
+        logClient.ERROR("Error copying the compiler into the namespace", {
+            namespace: path.basename(namespaceDirectory), error
+        });
+        return res.sendStatus(500);
+    }
     const harmonyFile = path.relative(copiedHarmonyDirectory, filename);
     child_process.exec(`./harmony ${harmonyFile}`,
         {cwd: copiedHarmonyDirectory}, (error, stdout) => {
@@ -40,7 +53,8 @@ export function runHarmony(
             });
         } else {
             try {
-                const results = JSON.parse(fs.readFileSync(path.join(copiedHarmonyDirectory, "charm.json"), {encoding: 'utf-8'}));
+                let data = fs.readFileSync(path.join(copiedHarmonyDirectory, "charm.json"), {encoding: 'utf-8'});
+                const results = JSON.parse(data);
                 if (results != null && results.issue != null && results.issue != "No issues") {
                     res.send({
                         status: "FAILURE",
@@ -50,6 +64,9 @@ export function runHarmony(
                     res.send({status: "SUCCESS", message: stdout});
                 }
             } catch (error) {
+                logClient.ERROR("Error encountered while parsing Harmony results", {
+                    error, namespace: path.basename(namespaceDirectory)
+                })
                 res.sendStatus(500);
             }
         }
