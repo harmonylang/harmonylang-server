@@ -1,6 +1,18 @@
 import admin from 'firebase-admin';
 import 'firebase/firestore';
-import serviceAccount from "../../resource/harmonylang-server-firebase-adminsdk-q60bw-b1e17167ad.json";
+
+const credentials = {
+    type: "service_account",
+    project_id: "harmonylang-server",
+    private_key_id: process.env.PRIVATE_KEY_ID,
+    private_key: process.env.PRIVATE_KEY,
+    client_email: process.env.CLIENT_EMAIL,
+    client_id: process.env.CLIENT_ID,
+    client_x509_cert_url: process.env.CLIENT_X509_CERT_URL,
+    auth_uri: "https://accounts.google.com/o/oauth2/auth",
+    token_uri: "https://oauth2.googleapis.com/token",
+    auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+};
 
 const firebaseConfig = {
     apiKey: "AIzaSyA2rapCh3dOBlHckBh3SfHIqYHEOyvQ0Kc",
@@ -10,7 +22,7 @@ const firebaseConfig = {
     messagingSenderId: "455127114629",
     appId: "1:455127114629:web:7a10fe70630010fb3c5aec",
     measurementId: "G-RBD4SXWPS4",
-    credential: admin.credential.cert(serviceAccount as any)
+    credential: admin.credential.cert(credentials as any)
 };
 
 // Initialize Firebase
