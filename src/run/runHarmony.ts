@@ -39,14 +39,10 @@ export function runHarmony(
                     status: "FAILURE",
                     jsonData: results
                 });
-            } else {
-                return res.send({
-                    status: "SUCCESS",
-                    message: stdout
-                });
             }
+            return res.send({status: "SUCCESS", message: stdout});
         } catch (error) {
-            res.sendStatus(500);
+            return res.sendStatus(500);
         }
     });
 }
