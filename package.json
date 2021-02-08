@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "start": "node ./out/index.js",
-    "prestart": "yarn compile",
+    "postinstall": "yarn compile",
     "compile": "tsc -p .",
     "dev": "nodemon --watch 'src/**/*.ts' --ignore 'src/**/*.test.ts' --exec 'ts-node' src/index.ts"
   },
