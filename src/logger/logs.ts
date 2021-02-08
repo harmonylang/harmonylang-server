@@ -1,11 +1,7 @@
-import firebase from 'firebase/app';
-
+import admin from 'firebase-admin';
 import 'firebase/firestore';
+import serviceAccount from "../../resource/harmonylang-server-firebase-adminsdk-q60bw-b1e17167ad.json";
 
-import { Logger } from '@firebase/logger';
-
-// TODO: Replace the following with your app's Firebase project configuration
-// For Firebase JavaScript SDK v7.20.0 and later, `measurementId` is an optional field
 const firebaseConfig = {
     apiKey: "AIzaSyA2rapCh3dOBlHckBh3SfHIqYHEOyvQ0Kc",
     authDomain: "harmonylang-server.firebaseapp.com",
@@ -13,12 +9,13 @@ const firebaseConfig = {
     storageBucket: "harmonylang-server.appspot.com",
     messagingSenderId: "455127114629",
     appId: "1:455127114629:web:7a10fe70630010fb3c5aec",
-    measurementId: "G-RBD4SXWPS4"
+    measurementId: "G-RBD4SXWPS4",
+    credential: admin.credential.cert(serviceAccount as any)
 };
 
 // Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const firestore = firebase.firestore();
+admin.initializeApp(firebaseConfig);
+const firestore = admin.firestore();
 const firestoreLogs = firestore.collection("harmonylang-logs");
 
 export const logClient = {

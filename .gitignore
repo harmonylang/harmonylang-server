@@ -119,3 +119,4 @@ dist
 
 harmony-prepare/
 uploads/
+resource/**/*.json
