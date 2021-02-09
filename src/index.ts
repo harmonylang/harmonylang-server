@@ -19,6 +19,10 @@ app.disable('x-powered-by');
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: true}));
 
+app.get('/', async (req, res) => {
+    res.sendStatus(200);
+});
+
 app.post("/check", upload.single("file"), async (req, res) => {
     const {main} = req.body;
     logClient.INFO("Received request");
