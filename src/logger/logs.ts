@@ -17,19 +17,23 @@ const credentials = {
 // Initialize Firebase
 let firestoreLogs: FirebaseFirestore.CollectionReference<FirebaseFirestore.DocumentData> | null = null;
 try {
-    const firebaseConfig = {
-        apiKey: "AIzaSyA2rapCh3dOBlHckBh3SfHIqYHEOyvQ0Kc",
-        authDomain: "harmonylang-server.firebaseapp.com",
-        projectId: "harmonylang-server",
-        storageBucket: "harmonylang-server.appspot.com",
-        messagingSenderId: "455127114629",
-        appId: "1:455127114629:web:7a10fe70630010fb3c5aec",
-        measurementId: "G-RBD4SXWPS4",
-        credential: admin.credential.cert(credentials as any)
-    };
-    admin.initializeApp(firebaseConfig);
-    firestoreLogs = admin.firestore().collection("harmonylang-logs");
-    console.log("Successfully connected to Firebase. Logs will be written");
+    if (!process.env.IS_DEVELOPMENT) {
+        const firebaseConfig = {
+            apiKey: "AIzaSyA2rapCh3dOBlHckBh3SfHIqYHEOyvQ0Kc",
+            authDomain: "harmonylang-server.firebaseapp.com",
+            projectId: "harmonylang-server",
+            storageBucket: "harmonylang-server.appspot.com",
+            messagingSenderId: "455127114629",
+            appId: "1:455127114629:web:7a10fe70630010fb3c5aec",
+            measurementId: "G-RBD4SXWPS4",
+            credential: admin.credential.cert(credentials as any)
+        };
+        admin.initializeApp(firebaseConfig);
+        firestoreLogs = admin.firestore().collection("harmonylang-logs");
+        console.log("Successfully connected to Firebase. Logs will be written");
+    } else {
+        console.log("Currently in development mode. Logs will not be written");
+    }
 } catch (error) {
     firestoreLogs = null;
     console.log("Failed to connect to Firebase. Logs will not be written.", error);

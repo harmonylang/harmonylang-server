@@ -23,6 +23,10 @@ app.get('/', async (req, res) => {
     res.sendStatus(200);
 });
 
+app.get('/home', (_, res) => {
+    return res.redirect("https://harmony.cs.cornell.edu/");
+});
+
 app.post("/check", upload.single("file"), async (req, res) => {
     const {main} = req.body;
     logClient.INFO("Received request");
@@ -45,6 +49,7 @@ app.post("/check", upload.single("file"), async (req, res) => {
             " severely unlucky");
         return res.status(400).send("Your request could not be served at this time. Please try again later");
     }
+
     // Create a directory to hold the zip file.
     const zipDirectory = path.join(UPLOADS_DIR, namespace, "zips");
     try {
@@ -53,6 +58,7 @@ app.post("/check", upload.single("file"), async (req, res) => {
         logClient.ERROR("Error making an empty zip directory", {
             namespace, error
         });
+        return res.sendStatus(500)
     }
 
     // Write the zip file to the zip directory.
