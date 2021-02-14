@@ -43,13 +43,15 @@ export function runHarmony(
         });
         return res.sendStatus(500);
     }
-    const harmonyFile = path.relative(copiedHarmonyDirectory, filename);
-    child_process.exec(`./harmony ${harmonyFile}`,
-        {cwd: copiedHarmonyDirectory}, (error, stdout) => {
+    const harmonyFile = `"${filename}"`;
+    child_process.execFile('./harmony', [harmonyFile], {
+        cwd: copiedHarmonyDirectory, shell: true
+    }, (error, stdout, stderr) => {
         if (error) {
+            console.log(error);
             res.send({
                 status: "ERROR",
-                message: stdout
+                message: error
             });
         } else {
             try {

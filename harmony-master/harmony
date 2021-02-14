@@ -3,7 +3,7 @@
 
 true <<'++COPYRIGHT++'
 Copyright (C) 2020  Robbert van Renesse
-
+	
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
 are met:
@@ -114,7 +114,7 @@ def release(binsema):
     atomic:
         assert !binsema
         !binsema = False
-
+    
 def held(binsema):
     result = !binsema
 
@@ -153,7 +153,7 @@ def P(sema):
                     blocked = False
 def V(sema):
     atomic: !sema += 1
-
+    
 def Queue():
     result = []
 
@@ -214,13 +214,13 @@ def notify(c):
         if !c != []:
             go (list.head(!c)) ()
             !c = list.tail(!c)
-
+        
 def notifyAll(c):
     atomic:
         while !c != []:
             go (list.head(!c)) ()
             !c = list.tail(!c)
-
+        
 def Semaphore(cnt):
     result = { .count: cnt, .waiters: [] }
 
@@ -230,7 +230,7 @@ def P(sema):
             sema->count -= 1
         else:
             stop sema->waiters[len sema->waiters]
-
+        
 def V(sema):
     atomic:
         let cnt, waiters = sema->count, sema->waiters:
@@ -248,7 +248,7 @@ def get(q):
     atomic:
         if q->list == []:
             stop q->waiters[len q->waiters]
-
+        
         result = list.head(q->list)
         q->list = list.tail(q->list)
 
@@ -302,7 +302,7 @@ def enumerate(d):
         for k in keys d:
             result += [ (index, d[k]), ]
             index += 1
-
+        
 # quicksort of a list
 def qsort(a):
     if a == []:
@@ -356,7 +356,7 @@ def add(pb, elt):
 def remove(pb, elt):
     if (elt in keys(!pb)) and ((!pb)[elt] > 0):
         (!pb)[elt] -= 1
-
+    
     if (!pb)[elt] <= 0:
         del (!pb)[elt]
 """,
@@ -419,7 +419,7 @@ struct keynode {
 	unsigned int len;
 	HASHDICT_VALUE_TYPE value;
 };
-
+		
 struct dict {
 	struct keynode **table;
 	int length, count;
@@ -444,7 +444,7 @@ typedef struct json_buf {
     int len;
 } json_buf_t;
 
-struct json_value {
+struct json_value { 
 	enum { JV_ATOM, JV_MAP, JV_LIST } type;
 	union {
 		json_buf_t atom;
@@ -574,8 +574,8 @@ char *value_json(uint64_t v);
 #define VALUE_FALSE     VALUE_BOOL
 #define VALUE_TRUE      ((1 << VALUE_BITS) | VALUE_BOOL)
 
-#define VALUE_MAX   ((~(uint64_t)0) >> (VALUE_BITS + 1))
-#define VALUE_MIN   (((uint64_t) 1) << (64 - VALUE_BITS - 1))
+#define VALUE_MAX   ((int64_t) ((~(uint64_t)0) >> (VALUE_BITS + 1)))
+#define VALUE_MIN   ((int64_t) ((~(uint64_t)0) << (64 - (VALUE_BITS + 1))))
 
 uint64_t dict_store(uint64_t dict, uint64_t key, uint64_t value);
 uint64_t dict_load(uint64_t dict, uint64_t key);
@@ -677,6 +677,8 @@ struct combined {           // combination of current state and current context
 
 struct component {
     bool good;          // terminating or out-going edge
+    int size;           // #states
+    int representative; // lowest numbered state in the component
 };
 
 struct edge {
@@ -684,6 +686,7 @@ struct edge {
     uint64_t ctx, choice;   // ctx that made the microstep, choice if any
     bool interrupt;         // set if state change is an interrupt
     struct node *node;      // resulting node (state)
+    uint64_t after;         // resulting context
     int weight;
 };
 
@@ -708,7 +711,7 @@ struct node {
 };
 
 struct failure {
-    enum { FAIL_SAFETY, FAIL_INVARIANT, FAIL_TERMINATION } type;
+    enum { FAIL_SAFETY, FAIL_INVARIANT, FAIL_TERMINATION, FAIL_BUSYWAIT } type;
     struct node *node;      // failed state
     uint64_t ctx;           // context that failed (before it failed)
     uint64_t choice;        // choice if any
@@ -944,7 +947,7 @@ void onestep(struct node *node, uint64_t ctx, uint64_t choice, bool interrupt,
             break;
         }
     }
-
+    
     if (infloop != NULL) {
         dict_delete(infloop);
     }
@@ -1029,6 +1032,7 @@ void onestep(struct node *node, uint64_t ctx, uint64_t choice, bool interrupt,
     fwd->node = next;
     fwd->weight = weight;
     fwd->next = node->fwd;
+    fwd->after = after;
     node->fwd = fwd;
 
     // Add a backward edge from next to node.
@@ -1039,6 +1043,7 @@ void onestep(struct node *node, uint64_t ctx, uint64_t choice, bool interrupt,
     bwd->node = node;
     bwd->weight = weight;
     bwd->next = next->bwd;
+    bwd->after = after;
     next->bwd = bwd;
 
     if (cc->failure != 0) {
@@ -1649,7 +1654,7 @@ void path_dump(FILE *file, struct node *last, uint64_t ctx, uint64_t choice,
         }
     }
     free(matched);
-
+  
     print_state(file, node);
     fprintf(file, "    }");
 }
@@ -1752,7 +1757,7 @@ static char *json_string_encode(char *s){
     *p++ = 0;
     return result;
 }
-
+            
 
 static void enum_loc(void *env, const void *key, unsigned int key_size,
                                 HASHDICT_VALUE_TYPE value){
@@ -1810,6 +1815,49 @@ static void enum_loc(void *env, const void *key, unsigned int key_size,
     }
     fclose(fp);
     fprintf(out, " }");
+}
+
+bool is_stuck(struct node *start, struct node *node, uint64_t ctx) {
+	if (node->component != start->component) {
+		return false;
+	}
+	if (node->visited) {
+		return true;
+	}
+	node->visited = true;
+    for (struct edge *edge = node->fwd; edge != NULL; edge = edge->next) {
+        if (edge->ctx == ctx) {
+			if (edge->node == node) {
+				return false;
+			}
+			if (!is_stuck(start, edge->node, edge->after)) {
+				return false;
+			}
+        }
+    }
+    return true;
+}
+
+void detect_busywait(int sid){
+    struct node *node = graph[sid];
+
+    for (struct edge *edge = node->fwd; edge != NULL; edge = edge->next) {
+		if (edge->node != node) {
+			for (int i = 0; i < graph_size; i++) {
+				graph[i]->visited = false;
+			}
+			node->visited = true;
+			if (is_stuck(node, edge->node, edge->after)) {
+                struct failure *f = new_alloc(struct failure);
+                f->type = FAIL_BUSYWAIT;
+                f->ctx = node->before;
+                f->choice = node->choice;
+                f->node = node;
+                queue_enqueue(failures, f);
+				break;
+			}
+		}
+    }
 }
 
 int main(int argc, char **argv){
@@ -1964,6 +2012,10 @@ int main(int argc, char **argv){
             struct node *node = graph[i];
 			assert(node->component < ncomponents);
             struct component *comp = &components[node->component];
+            if (comp->size == 0) {
+                comp->representative = i;
+            }
+            comp->size++;
             if (comp->good) {
                 continue;
             }
@@ -1991,6 +2043,17 @@ int main(int argc, char **argv){
                 f->choice = node->choice;
                 f->node = node;
                 queue_enqueue(failures, f);
+            }
+        }
+
+        if (false && nbad == 0) {
+            for (int i = 0; i < graph_size; i++) {
+				graph[i]->visited = false;
+			}
+            for (int i = 0; i < ncomponents; i++) {
+                if (components[i].size > 1) {
+                    detect_busywait(components[i].representative);
+                }
             }
         }
 
@@ -2030,6 +2093,10 @@ int main(int argc, char **argv){
         printf("Non-terminating state\n");
         fprintf(out, "  \"issue\": \"Non-terminating state\",\n");
         break;
+    case FAIL_BUSYWAIT:
+        printf("Busy waiting\n");
+        fprintf(out, "  \"issue\": \"Busy waiting\",\n");
+		break;
     default:
         panic("main: bad fail type");
     }
@@ -2667,7 +2734,7 @@ struct json_value *json_lookup_map(struct dict *map, char *key){
 	return jv;
 }
 
-/* Find a json_value (can be either a JV_MAP or JV_ATOM)
+/* Find a json_value (can be either a JV_MAP or JV_ATOM) 
  * inside the map by string key.
  */
 struct json_value *json_lookup_value(struct dict *map, char *key){
@@ -2858,7 +2925,7 @@ struct var_tree *var_parse(char *s, int len, int *index){
 
 void ctx_push(struct context **pctx, uint64_t v){
 	assert(*pctx != NULL);
-    struct context *ctx = realloc(*pctx, sizeof(struct context) +
+    struct context *ctx = realloc(*pctx, sizeof(struct context) + 
                 ((*pctx)->sp + 1) * sizeof(uint64_t));
 
     ctx->stack[ctx->sp++] = v;
@@ -2903,7 +2970,7 @@ uint64_t dict_load(uint64_t dict, uint64_t key){
         if (vals[i] == key) {
             return vals[i + 1];
         }
-        /*
+        /* 
             if (value_cmp(vals[i], key) > 0) {
                 break;
             }
@@ -2943,7 +3010,7 @@ uint64_t dict_remove(uint64_t dict, uint64_t key){
             free(copy);
             return v;
         }
-        /*
+        /* 
             if (value_cmp(vals[i], key) > 0) {
                 assert(false);
             }
@@ -2974,7 +3041,7 @@ bool dict_tryload(uint64_t dict, uint64_t key, uint64_t *result){
             *result = vals[i + 1];
             return true;
         }
-        /*
+        /* 
             if (value_cmp(vals[i], key) > 0) {
                 break;
             }
@@ -3093,7 +3160,7 @@ bool ind_trystore(uint64_t dict, uint64_t *indices, int n, uint64_t value, uint6
                 *result = v;
                 return true;
             }
-            /*
+            /* 
                 if (value_cmp(vals[i], key) > 0) {
                     assert(false);
                 }
@@ -3140,7 +3207,7 @@ uint64_t ind_remove(uint64_t dict, uint64_t *indices, int n){
                 free(copy);
                 return v;
             }
-            /*
+            /* 
                 if (value_cmp(vals[i], key) > 0) {
                     assert(false);
                 }
@@ -3348,7 +3415,7 @@ void op_Frame(const void *env, struct state *state, struct context **pctx){
     if ((*pctx)->failure != 0) {
         return;
     }
-
+ 
     ctx_push(pctx, oldvars);
     ctx_push(pctx, ((*pctx)->fp << VALUE_BITS) | VALUE_INT);
 
@@ -4368,7 +4435,7 @@ uint64_t f_intersection(struct state *state, struct context *ctx, uint64_t *args
                 min_size = 0;
             }
             else {
-                vi[i].vals = value_get(args[i], &vi[i].size);
+                vi[i].vals = value_get(args[i], &vi[i].size); 
                 vi[i].index = 0;
 				if (vi[i].size < min_size) {
 					min_size = vi[i].size;
@@ -4455,7 +4522,7 @@ uint64_t f_intersection(struct state *state, struct context *ctx, uint64_t *args
             vi[i].size = 0;
         }
         else {
-            vi[i].vals = value_get(args[i], &vi[i].size);
+            vi[i].vals = value_get(args[i], &vi[i].size); 
             total += vi[i].size;
         }
     }
@@ -4663,6 +4730,15 @@ uint64_t f_minus(struct state *state, struct context *ctx, uint64_t *args, int n
             return ctx_failure(ctx, "unary minus can only be applied to ints");
         }
         e >>= VALUE_BITS;
+        if (e == VALUE_MAX) {
+            return ((uint64_t) VALUE_MIN << VALUE_BITS) | VALUE_INT;
+        }
+        if (e == VALUE_MIN) {
+            return (VALUE_MAX << VALUE_BITS) | VALUE_INT;
+        }
+        if (-e <= VALUE_MIN || -e >= VALUE_MAX) {
+            return ctx_failure(ctx, "unary minus overflow (model too large)");
+        }
         return ((-e) << VALUE_BITS) | VALUE_INT;
     }
     else {
@@ -4673,7 +4749,11 @@ uint64_t f_minus(struct state *state, struct context *ctx, uint64_t *args, int n
             }
             e1 >>= VALUE_BITS;
             e2 >>= VALUE_BITS;
-            return ((e2 - e1) << VALUE_BITS) | VALUE_INT;
+            int64_t result = e2 - e1;
+            if (result <= VALUE_MIN || result >= VALUE_MAX) {
+                return ctx_failure(ctx, "minus overflow (model too large)");
+            }
+            return (result << VALUE_BITS) | VALUE_INT;
         }
 
         uint64_t e1 = args[0], e2 = args[1];
@@ -4756,17 +4836,24 @@ uint64_t f_not(struct state *state, struct context *ctx, uint64_t *args, int n){
 }
 
 uint64_t f_plus(struct state *state, struct context *ctx, uint64_t *args, int n){
-    if ((args[0] & VALUE_MASK) == VALUE_INT) {
-        int64_t e1 = args[0];
+    int64_t e1 = args[0];
+    if ((e1 & VALUE_MASK) == VALUE_INT) {
+        e1 >>= VALUE_BITS;
         for (int i = 1; i < n; i++) {
             int64_t e2 = args[i];
             if ((e2 & VALUE_MASK) != VALUE_INT) {
                 return ctx_failure(ctx,
                     "+: applied to mix of integers and other values");
             }
-            e1 += e2 & ~VALUE_MASK;
+            e2 >>= VALUE_BITS;
+            int64_t sum = e1 + e2;
+            if (sum <= VALUE_MIN || sum >= VALUE_MAX) {
+                return ctx_failure(ctx,
+                    "+: integer overflow (model too large)");
+            }
+            e1 = sum;
         }
-        return e1;
+        return (e1 << VALUE_BITS) | VALUE_INT;
     }
 
     // get all the lists
@@ -4783,7 +4870,7 @@ uint64_t f_plus(struct state *state, struct context *ctx, uint64_t *args, int n)
             vi[i].size = 0;
         }
         else {
-            vi[i].vals = value_get(args[i], &vi[i].size);
+            vi[i].vals = value_get(args[i], &vi[i].size); 
             total += vi[i].size;
         }
     }
@@ -4825,8 +4912,14 @@ uint64_t f_power(struct state *state, struct context *ctx, uint64_t *args, int n
     }
     int64_t base = e2 >> VALUE_BITS;
     int64_t exp = e1 >> VALUE_BITS;
+    if (exp == 0) {
+        return (1 << VALUE_BITS) | VALUE_INT;
+    }
+    if (exp < 0) {
+        return ctx_failure(ctx, "**: negative exponent");
+    }
 
-    int64_t result = 1;
+    int64_t result = 1, orig = base;
     for (;;) {
         if (exp & 1) {
             result *= base;
@@ -4836,6 +4929,10 @@ uint64_t f_power(struct state *state, struct context *ctx, uint64_t *args, int n
             break;
         }
         base *= base;
+    }
+    if (result < orig) {
+        // TODO.  Improve overflow detection
+        return ctx_failure(ctx, "**: overflow (model too large)");
     }
 
     return (result << VALUE_BITS) | VALUE_INT;
@@ -4990,8 +5087,18 @@ uint64_t f_shiftleft(struct state *state, struct context *ctx, uint64_t *args, i
         return ctx_failure(ctx, "left argument to << not an integer");
     }
     e1 >>= VALUE_BITS;
+    if (e1 < 0) {
+        return ctx_failure(ctx, "<<: negative shift count");
+    }
     e2 >>= VALUE_BITS;
-    return ((e2 << e1) << VALUE_BITS) | VALUE_INT;
+    int64_t result = e2 << e1;
+    if (((result << VALUE_BITS) >> VALUE_BITS) != result) {
+        return ctx_failure(ctx, "<<: overflow (model too large)");
+    }
+    if (result <= VALUE_MIN || result >= VALUE_MAX) {
+        return ctx_failure(ctx, "<<: overflow (model too large)");
+    }
+    return (result << VALUE_BITS) | VALUE_INT;
 }
 
 uint64_t f_shiftright(struct state *state, struct context *ctx, uint64_t *args, int n){
@@ -5004,6 +5111,9 @@ uint64_t f_shiftright(struct state *state, struct context *ctx, uint64_t *args, 
     if ((e2 & VALUE_MASK) != VALUE_INT) {
         return ctx_failure(ctx, "left argument to >> not an integer");
     }
+    if (e1 < 0) {
+        return ctx_failure(ctx, ">>: negative shift count");
+    }
     e1 >>= VALUE_BITS;
     e2 >>= VALUE_BITS;
     return ((e2 >> e1) << VALUE_BITS) | VALUE_INT;
@@ -5012,6 +5122,7 @@ uint64_t f_shiftright(struct state *state, struct context *ctx, uint64_t *args, 
 uint64_t f_times(struct state *state, struct context *ctx, uint64_t *args, int n){
     int64_t result = 1;
     int list = -1;
+    bool haszero = false;
     for (int i = 0; i < n; i++) {
         int64_t e = args[i];
         if ((e & VALUE_MASK) == VALUE_DICT) {
@@ -5025,11 +5136,27 @@ uint64_t f_times(struct state *state, struct context *ctx, uint64_t *args, int n
                 return ctx_failure(ctx,
                     "* can only be applied to integers and at most one list");
             }
-            result *= e >> VALUE_BITS;
+            e >>= VALUE_BITS;
+            if (e == 0) {
+                result = 0;
+            }
+            else {
+                int64_t product = result * e;
+                if (product / result != e) {
+                    return ctx_failure(ctx, "*: overflow (model too large)");
+                }
+                result = product;
+            }
         }
     }
     if (list < 0) {
+        if (result != (result << VALUE_BITS) >> VALUE_BITS) {
+            return ctx_failure(ctx, "*: overflow (model too large)");
+        }
         return (result << VALUE_BITS) | VALUE_INT;
+    }
+    if (result == 0) {
+        return VALUE_DICT;
     }
     int size;
     uint64_t *vals = value_get(args[list], &size);
@@ -5078,7 +5205,7 @@ uint64_t f_union(struct state *state, struct context *ctx, uint64_t *args, int n
                 vi[i].size = 0;
             }
             else {
-                vi[i].vals = value_get(args[i], &vi[i].size);
+                vi[i].vals = value_get(args[i], &vi[i].size); 
                 total += vi[i].size;
             }
         }
@@ -5118,7 +5245,7 @@ uint64_t f_union(struct state *state, struct context *ctx, uint64_t *args, int n
             vi[i].size = 0;
         }
         else {
-            vi[i].vals = value_get(args[i], &vi[i].size);
+            vi[i].vals = value_get(args[i], &vi[i].size); 
             total += vi[i].size;
         }
     }
@@ -5183,7 +5310,7 @@ uint64_t f_xor(struct state *state, struct context *ctx, uint64_t *args, int n){
             vi[i].size = 0;
         }
         else {
-            vi[i].vals = value_get(args[i], &vi[i].size);
+            vi[i].vals = value_get(args[i], &vi[i].size); 
             total += vi[i].size;
         }
     }
@@ -5701,32 +5828,33 @@ static char *value_json_bool(uint64_t v) {
 }
 
 static char *value_string_int(uint64_t v) {
+    int64_t w = ((int64_t) v) >> VALUE_BITS;
     char *r;
 
-    if ((v >> VALUE_BITS) == VALUE_MAX) {
+    if (w == VALUE_MAX) {
         alloc_printf(&r, "inf");
     }
-    else if ((v >> VALUE_BITS) == VALUE_MIN) {
+    else if (w == VALUE_MIN) {
         alloc_printf(&r, "-inf");
     }
     else {
-        alloc_printf(&r, "%"PRId64"", ((int64_t) v) >> VALUE_BITS);
+        alloc_printf(&r, "%"PRId64"", w);
     }
     return r;
 }
 
 static char *value_json_int(uint64_t v) {
+    int64_t w = ((int64_t) v) >> VALUE_BITS;
     char *r;
 
-    if ((v >> VALUE_BITS) == VALUE_MAX) {
+    if (w == VALUE_MAX) {
         alloc_printf(&r, "{ \"type\": \"int\", \"value\": \"inf\" }");
     }
-    else if ((v >> VALUE_BITS) == VALUE_MIN) {
+    else if (w == VALUE_MIN) {
         alloc_printf(&r, "{ \"type\": \"int\", \"value\": \"-inf\" }");
     }
     else {
-        alloc_printf(&r, "{ \"type\": \"int\", \"value\": \"%"PRId64"\" }",
-                            ((int64_t) v) >> VALUE_BITS);
+        alloc_printf(&r, "{ \"type\": \"int\", \"value\": \"%"PRId64"\" }", w);
     }
     return r;
 }
@@ -5773,18 +5901,40 @@ static char *value_string_dict(uint64_t v) {
     uint64_t *vals = dict_retrieve(p, &size);
     size /= 2 * sizeof(uint64_t);
 
-    alloc_printf(&r, "{ ");
-    for (int i = 0; i < size; i++) {
-        if (i != 0) {
-            append_printf(&r, ", ");
+    bool islist = true;
+    for (uint64_t i = 0; i < size; i++) {
+        if (vals[2*i] != ((i << VALUE_BITS) | VALUE_INT)) {
+            islist = false;
+            break;
         }
-        char *key = value_string(vals[2*i]);
-        char *val = value_string(vals[2*i+1]);
-        append_printf(&r, "%s: %s", key, val);
-        free(key);
-        free(val);
     }
-    append_printf(&r, " }");
+
+    if (islist) {
+        alloc_printf(&r, "(");
+        for (int i = 0; i < size; i++) {
+            if (i != 0) {
+                append_printf(&r, ", ");
+            }
+            char *val = value_string(vals[2*i+1]);
+            append_printf(&r, "%s", val);
+            free(val);
+        }
+        append_printf(&r, ")");
+    }
+    else {
+        alloc_printf(&r, "{ ");
+        for (int i = 0; i < size; i++) {
+            if (i != 0) {
+                append_printf(&r, ", ");
+            }
+            char *key = value_string(vals[2*i]);
+            char *val = value_string(vals[2*i+1]);
+            append_printf(&r, "%s: %s", key, val);
+            free(key);
+            free(val);
+        }
+        append_printf(&r, " }");
+    }
     return r;
 }
 
@@ -6227,9 +6377,9 @@ def brief_string(js):
         lst = [ brief_kv(kv) for kv in v ]
         keys = [ k for k,v in lst ]
         if keys == [str(i) for i in range(len(v))]:
-            return "[ " + ", ".join([v for k,v in lst]) + " ]"
+            return "[ " + ", ".join([v for k,v in lst]) + " ]" 
         else:
-            return "{ " + ", ".join([k + ": " + v for k,v in lst]) + " }"
+            return "{ " + ", ".join([k + ": " + v for k,v in lst]) + " }" 
     if type == "pc":
         return "PC(%s)"%v
     if type == "address":
@@ -6348,7 +6498,7 @@ class GenHTML:
 }
 #table-scroll {
   height:200px;
-  overflow:auto;
+  overflow:auto;  
 }
 #table-wrapper table {
   width:100%;
@@ -6357,7 +6507,7 @@ class GenHTML:
   color:black;
 }
 #table-wrapper table thead th .text {
-  position:absolute;
+  position:absolute;   
   top:-20px;
   z-index:2;
   height:20px;
@@ -6761,7 +6911,7 @@ function init_microstep(masidx, misidx) {
   }
 
   // Update local variables
-  var trl = microsteps[t].trace.length;
+  var trl = microsteps[t].trace.length; 
   if (trl > 0 && mis.hasOwnProperty("local")) {
     // deep copy first
     microsteps[t].trace = JSON.parse(JSON.stringify(microsteps[t].trace))
@@ -7013,7 +7163,7 @@ document.addEventListener('keydown', handleKeyPress);
         if type == "dict":
             if v == []:
                 return "()"
-            return "{ " + ", ".join([ self.json_kv(kv) for kv in v ]) + " }"
+            return "{ " + ", ".join([ self.json_kv(kv) for kv in v ]) + " }" 
         if type == "pc":
             return "PC(%s)"%v
         if type == "address":
@@ -7376,7 +7526,7 @@ def doImport(scope, code, module):
             else:
                 print("Can't find module", modname, "imported from", namestack)
                 exit(1)
-
+        
         imported[lexeme] = scope2
 
     scope.names[lexeme] = ("module", imported[lexeme])
@@ -8909,7 +9059,7 @@ class NaryOp(Op):
                             if k2 not in e1.d:
                                 d[k2] = v2
                         e2 = DictValue(d)
-                elif op == "^":
+                elif op == "^": 
                     if type(e1) == int:
                         if not self.checktype(state, context, sa, type(e2) == int):
                             return
@@ -9301,7 +9451,7 @@ class AST:
             code.append(NaryOp(("IsEmpty", file, line, column), 1))
             tst = len(code)
             code.append(None)       # going to plug in a Jump op here
-            code.append(CutOp(S, var))
+            code.append(CutOp(S, var))  
             self.rec_comprehension(scope, code, iter[1:], pc, N, vars + [var], ctype)
             code.append(JumpOp(pc))
             code[tst] = JumpCondOp(True, len(code))
@@ -9365,7 +9515,7 @@ class AST:
                 else:
                     print("Can't find module", modname, "imported from", namestack)
                     exit(1)
-
+            
             imported[lexeme] = scope2
 
         scope.names[lexeme] = ("module", imported[lexeme])
@@ -9871,7 +10021,7 @@ class ListComprehensionRule(Rule):
 
     def parse(self, t):
         token = t[0]
-        (lst, t) = self.iterParse(t[1:], self.closers)
+        (lst, t) = self.iterParse(t[1:], self.closers) 
         return (ListComprehensionAST(self.value, lst, token), t)
 
 class SetRule(Rule):
@@ -10032,7 +10182,7 @@ class BasicExpressionRule(Rule):
         if lexeme[0] == '"':
             return (TupleAST([ ConstantAST((c, file, line, column))
                                 for c in lexeme[1:] ], token), t[1:])
-        if lexeme == ".":
+        if lexeme == ".": 
             (lexeme, file, line, column) = t[1]
             if lexeme.startswith("0x"):
                 return (ConstantAST((chr(int(lexeme, 16)), file, line, column)), t[2:])
@@ -10956,7 +11106,7 @@ class StatementRule(Rule):
                 (expr, tokens) = NaryRule(set()).parse(tokens[1:])
                 assert tokens == []
             return (AssertAST(token, cond, expr), t)
-
+        
         # If we get here, the next statement is either an expression
         # or an assignment.  The assignment grammar is either
         #   (tuple_expression '=')* tuple_expression
@@ -11496,7 +11646,7 @@ class Pad:
         self.descr = descr
         self.value = ""
         self.lastlen = 0
-
+    
     def __repr__(self):
         return self.descr + " = " + self.value
 
@@ -12316,7 +12466,7 @@ def htmldump(nodes, code, scope, node, fulldump, verbose):
 }
 #table-scroll {
   height:200px;
-  overflow:auto;
+  overflow:auto;  
 }
 #table-wrapper table {
   width:100%;
@@ -12325,7 +12475,7 @@ def htmldump(nodes, code, scope, node, fulldump, verbose):
   color:black;
 }
 #table-wrapper table thead th .text {
-  position:absolute;
+  position:absolute;   
   top:-20px;
   z-index:2;
   height:20px;
@@ -12570,7 +12720,7 @@ def main():
             os.close(fd)
         with open(tmpfile, "w") as fd:
             dumpCode("json", code, scope, f=fd)
-        charm = "%s/.charm"%pathlib.Path.home()
+        charm = "%s/.charm.exe"%pathlib.Path.home()
         path = pathlib.Path(charm)
         rebuild = testflag or not path.exists()
         if not rebuild:
@@ -12580,11 +12730,20 @@ def main():
                 rebuild = True
         if rebuild:
             with open("charm.c", "w") as fd:
+                if not testflag:
+                    print("#define NDEBUG", file=fd)
+                print("#define HARMONY_COMBINE", file=fd)
                 print(charm_src, file=fd)
             if testflag:
-                r = os.system("cc -g -DHARMONY_COMBINE charm.c -o %s"%charm);
+                # if os.name == "nt":
+                #     r = os.system("cl charm.c /link /out:%s"%charm);
+                # else:
+                    r = os.system("gcc -g charm.c -m64 -o %s"%charm);
             else:
-                r = os.system("cc -O3 -DNDEBUG -DHARMONY_COMBINE charm.c -o %s"%charm);
+                # if os.name == "nt":
+                #     r = os.system("cl charm.c /link /out:%s"%charm);
+                # else:
+                    r = os.system("gcc -O3 charm.c -m64 -o %s"%charm);
             if r != 0:
                 print("can't create charm model checker")
                 sys.exit(r);
