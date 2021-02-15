@@ -59,7 +59,7 @@ export function runHarmony(
         cwd: copiedHarmonyDirectory, shell: true
     }, (err, stdout, stderr) => {
         if (err) {
-            logger.INFO("Process led to error", {error: err, stderr});
+            logger.INFO("Process led to error", {error: err.message, stderr});
             if (err.message.startsWith("Command failed")) {
                 res.send({
                     status: "ERROR",
