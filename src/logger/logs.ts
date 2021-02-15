@@ -39,29 +39,53 @@ try {
     console.log("Failed to connect to Firebase. Logs will not be written.", error);
 }
 
-export const logClient = {
-    INFO(message: string, kv?: Record<string, unknown>) {
-        firestoreLogs?.add(Object.assign(kv ?? {}, {
-            message: message,
-            service: "harmonylang-server",
-            timestamp: new Date(),
-            level: "INFO",
-        }))?.catch(e => console.log(e));
-    },
-    WARN(message: string, kv?: Record<string, unknown>) {
-        firestoreLogs?.add(Object.assign(kv ?? {}, {
-            message: message,
-            service: "harmonylang-server",
-            timestamp: new Date(),
-            level: "WARN",
-        }))?.catch(e => console.log(e));
-    },
-    ERROR(message: string, kv?: Record<string, unknown>) {
-        firestoreLogs?.add(Object.assign(kv ?? {}, {
-            message: message,
-            service: "harmonylang-server",
-            timestamp: new Date(),
-            level: "ERROR",
-        }))?.catch(e => console.log(e));
+export type HarmonyLogger = {
+    INFO(message: string, kv?: Record<string, unknown>): void,
+    WARN(message: string, kv?: Record<string, unknown>): void
+    ERROR(message: string, kv?: Record<string, unknown>): void
+    WITH(kv: Record<string, unknown>): HarmonyLogger
+}
+
+export function makeLogger(kv?: Record<string, unknown>): HarmonyLogger {
+    const keyValues = Object.assign({}, kv);
+    return {
+        INFO(message: string, kv?: Record<string, unknown>) {
+            firestoreLogs?.add({
+                ...keyValues,
+                ...kv ?? {},
+                message: message,
+                service: "harmonylang-server",
+                timestamp: new Date(),
+                level: "INFO",
+            })?.catch(e => console.log(e));
+        },
+        WARN(message: string, kv?: Record<string, unknown>) {
+            firestoreLogs?.add({
+                ...keyValues,
+                ...kv ?? {},
+                message: message,
+                service: "harmonylang-server",
+                timestamp: new Date(),
+                level: "WARN",
+            })?.catch(e => console.log(e));
+        },
+        ERROR(message: string, kv?: Record<string, unknown>) {
+            firestoreLogs?.add({
+                ...keyValues,
+                ...kv ?? {},
+                message: message,
+                service: "harmonylang-server",
+                timestamp: new Date(),
+                level: "ERROR",
+            })?.catch(e => console.log(e));
+        },
+        WITH(kv: Record<string, unknown>) {
+            return makeLogger({
+                ...keyValues,
+                ...kv
+            });
+        }
     }
 }
+
+export const logClient = makeLogger();

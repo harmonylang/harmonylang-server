@@ -28,8 +28,9 @@ app.get('/home', (_, res) => {
 });
 
 app.post("/check", upload.single("file"), async (req, res) => {
+    const logger = logClient.WITH({id: generateNamespace(() => true)})
     const {main} = req.body;
-    logClient.INFO("Received request");
+    logger.INFO("Received request");
     if (main == null || typeof main !== "string") {
         return res.status(400).send("No main file was declared");
     }
@@ -37,7 +38,7 @@ app.post("/check", upload.single("file"), async (req, res) => {
     if (zippedFile == null) {
         return res.status(400).send("No files were uploaded");
     }
-    logClient.INFO("Uploaded file metadata", {
+    logger.INFO("Uploaded file metadata", {
         size: zippedFile.size
     });
     // Ensure there is only file being sent.
@@ -45,7 +46,7 @@ app.post("/check", upload.single("file"), async (req, res) => {
         return !fsSync.existsSync(path.join(UPLOADS_DIR, name));
     })
     if (namespace == null) {
-        logClient.WARN("Failed to generate a uuid. May be a sign the uploads directory is too big, or we were" +
+        logger.WARN("Failed to generate a uuid. May be a sign the uploads directory is too big, or we were" +
             " severely unlucky");
         return res.status(400).send("Your request could not be served at this time. Please try again later");
     }
@@ -55,7 +56,7 @@ app.post("/check", upload.single("file"), async (req, res) => {
     try {
         await fs.mkdir(zipDirectory, {recursive: true});
     } catch (error) {
-        logClient.ERROR("Error making an empty zip directory", {
+        logger.ERROR("Error making an empty zip directory", {
             namespace, error
         });
         return res.sendStatus(500)
@@ -66,7 +67,7 @@ app.post("/check", upload.single("file"), async (req, res) => {
     try {
         await fs.writeFile(filename, zippedFile.buffer);
     } catch (error) {
-        logClient.ERROR("Error writing the zip file to a zip directory", {
+        logger.ERROR("Error writing the zip file to a zip directory", {
             namespace, error
         });
         return res.sendStatus(500);
@@ -80,7 +81,8 @@ app.post("/check", upload.single("file"), async (req, res) => {
     return runHarmony(
         path.join(UPLOADS_DIR, namespace),
         path.join(harmonyDirectory, main),
-        res
+        res,
+        logger
     );
 });
 

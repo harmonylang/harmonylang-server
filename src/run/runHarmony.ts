@@ -4,16 +4,17 @@ import {HARMONY_DIR} from "../config";
 import fs from "fs-extra";
 import express from "express";
 import rimraf from "rimraf";
-import {logClient} from "../logger/logs";
+import {HarmonyLogger} from "../logger/logs";
 
 /**
  * Removes an allocated namespace directory.
  * @param namespace
+ * @param logger
  */
-function cleanup(namespace: string) {
+function cleanup(namespace: string, logger: HarmonyLogger) {
     rimraf(namespace, error => {
         if (error) {
-            logClient.WARN("Warning: failed to cleanup namespace", {namespace: path.basename(namespace)});
+            logger.WARN("Warning: failed to cleanup namespace", {namespace: path.basename(namespace)});
         }
     });
 }
@@ -33,26 +34,43 @@ export function runHarmony(
     namespaceDirectory: string,
     filename: string,
     res: express.Response,
+    logger: HarmonyLogger
 ) {
     let copiedHarmonyDirectory = "";
     try {
         copiedHarmonyDirectory = copyCompiler(namespaceDirectory);
     } catch (error) {
-        logClient.ERROR("Error copying the compiler into the namespace", {
+        logger.ERROR("Error copying the compiler into the namespace", {
             namespace: path.basename(namespaceDirectory), error
         });
         return res.sendStatus(500);
     }
-    const harmonyFile = `${filename}`;
+    const harmonyFile = filename;
+    if (!fs.existsSync(harmonyFile) || !fs.statSync(harmonyFile).isFile()) {
+        logger.ERROR("Filename does not exist", {
+            harmonyFile, code: 404, namespace: path.basename(namespaceDirectory)
+        });
+        res.sendStatus(404);
+        cleanup(namespaceDirectory, logger);
+        return;
+    }
+
     child_process.execFile('./harmony', [harmonyFile], {
         cwd: copiedHarmonyDirectory, shell: true
-    }, (error, stdout, stderr) => {
-        if (error) {
-            console.log(error);
-            res.send({
-                status: "ERROR",
-                message: error.message
-            });
+    }, (err, stdout, stderr) => {
+        if (err) {
+            logger.INFO("Process led to error", {error: err, stderr});
+            if (err.message.startsWith("Command failed")) {
+                res.send({
+                    status: "ERROR",
+                    message: "Failed to execute Harmony file"
+                })
+            } else {
+                res.send({
+                    status: "ERROR",
+                    message: err.message
+                });
+            }
         } else {
             try {
                 let data = fs.readFileSync(path.join(copiedHarmonyDirectory, "charm.json"), {encoding: 'utf-8'});
@@ -65,13 +83,15 @@ export function runHarmony(
                 } else {
                     res.send({status: "SUCCESS", message: stdout});
                 }
+                logger.INFO("Successfully responded with result");
             } catch (error) {
-                logClient.ERROR("Error encountered while parsing Harmony results", {
-                    error, namespace: path.basename(namespaceDirectory)
+                logger.ERROR("Error encountered while parsing Harmony results", {
+                    error, namespace: path.basename(namespaceDirectory),
+                    responseCode: 500
                 })
                 res.sendStatus(500);
             }
         }
-        cleanup(namespaceDirectory);
+        cleanup(namespaceDirectory, logger);
     });
 }
