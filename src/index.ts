@@ -28,10 +28,13 @@ app.get('/home', (_, res) => {
 });
 
 app.post("/check", upload.single("file"), async (req, res) => {
-    const logger = logClient.WITH({id: generateNamespace(() => true)})
     const {main: pathToMainFile, version} = req.body;
+    const logger = logClient
+        .WITH({id: generateNamespace(() => true)})
+        .WITH({version})
 
     logger.INFO("Received request");
+    console.log(version);
 
     let main: string | null | undefined = "";
     if (version != null && typeof version === "string") {
