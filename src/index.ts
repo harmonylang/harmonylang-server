@@ -29,9 +29,21 @@ app.get('/home', (_, res) => {
 
 app.post("/check", upload.single("file"), async (req, res) => {
     const logger = logClient.WITH({id: generateNamespace(() => true)})
-    const {main} = req.body;
+    const {main: pathToMainFile, version} = req.body;
+
     logger.INFO("Received request");
-    if (main == null || typeof main !== "string") {
+
+    let main: string | null | undefined = "";
+    if (version != null && typeof version === "string") {
+        const [major, minor, patch] = version.split(".").map(v => Number.parseInt(v));
+        if (major >= 0 && minor >= 2 && patch >= 6) {
+            main = JSON.parse(pathToMainFile).join(path.sep);
+        }
+    }
+    if (main === "") {
+        main = pathToMainFile;
+    }
+    if (main == null) {
         return res.status(400).send("No main file was declared");
     }
     const zippedFile = req.file;
