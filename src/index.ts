@@ -28,7 +28,7 @@ app.get('/home', (_, res) => {
 });
 
 app.post("/check", upload.single("file"), async (req, res) => {
-    const {main: pathToMainFile, version} = req.body;
+    const {main: pathToMainFile, version, source} = req.body;
     const logger = logClient
         .WITH({id: generateNamespace(() => true)})
         .WITH({version: version ?? ""})
@@ -36,7 +36,9 @@ app.post("/check", upload.single("file"), async (req, res) => {
     logger.INFO("Received request");
 
     let main: string | null | undefined = "";
-    if (version != null && typeof version === "string") {
+    if (source === "web-ide") {
+        main = JSON.parse(pathToMainFile).join(path.sep);
+    } else if (version != null && typeof version === "string" && source === "vscode") {
         const [major, minor, patch] = version.split(".").map(v => Number.parseInt(v));
         if (major >= 0 && minor >= 2 && patch >= 6) {
             main = JSON.parse(pathToMainFile).join(path.sep);
