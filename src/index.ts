@@ -30,8 +30,8 @@ app.get('/home', (_, res) => {
 app.post("/check", upload.single("file"), async (req, res) => {
     const {main: pathToMainFile, version, source} = req.body;
     const logger = logClient
-        .WITH({id: generateNamespace(() => true)})
-        .WITH({version: version ?? ""})
+        .WITH({id: generateNamespace(() => true) ?? ""})
+        .WITH({version: version ?? "", source: source ?? ""})
 
     logger.INFO("Received request");
 
