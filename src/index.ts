@@ -34,7 +34,6 @@ app.post("/check", upload.single("file"), async (req, res) => {
         .WITH({version})
 
     logger.INFO("Received request");
-    console.log(version);
 
     let main: string | null | undefined = "";
     if (version != null && typeof version === "string") {
