@@ -31,7 +31,7 @@ app.post("/check", upload.single("file"), async (req, res) => {
     const {main: pathToMainFile, version} = req.body;
     const logger = logClient
         .WITH({id: generateNamespace(() => true)})
-        .WITH({version})
+        .WITH({version: version ?? ""})
 
     logger.INFO("Received request");
 
