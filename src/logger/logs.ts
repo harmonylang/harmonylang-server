@@ -50,34 +50,49 @@ export function makeLogger(kv?: Record<string, unknown>): HarmonyLogger {
     const keyValues = Object.assign({}, kv);
     return {
         INFO(message: string, kv?: Record<string, unknown>) {
-            firestoreLogs?.add({
+            const logBody = {
                 ...keyValues,
                 ...kv ?? {},
                 message: message,
                 service: "harmonylang-server",
                 timestamp: new Date(),
                 level: "INFO",
-            })?.catch(e => console.log(e));
+            };
+            if (firestoreLogs) {
+                firestoreLogs.add(logBody).catch(e => console.log(e));
+            } else {
+                console.log(logBody);
+            }
         },
         WARN(message: string, kv?: Record<string, unknown>) {
-            firestoreLogs?.add({
+            const logBody = {
                 ...keyValues,
                 ...kv ?? {},
                 message: message,
                 service: "harmonylang-server",
                 timestamp: new Date(),
                 level: "WARN",
-            })?.catch(e => console.log(e));
+            };
+            if (firestoreLogs) {
+                firestoreLogs.add(logBody).catch(e => console.log(e));
+            } else {
+                console.log(logBody);
+            }
         },
         ERROR(message: string, kv?: Record<string, unknown>) {
-            firestoreLogs?.add({
+            const logBody = {
                 ...keyValues,
                 ...kv ?? {},
                 message: message,
                 service: "harmonylang-server",
                 timestamp: new Date(),
                 level: "ERROR",
-            })?.catch(e => console.log(e));
+            };
+            if (firestoreLogs) {
+                firestoreLogs.add(logBody).catch(e => console.log(e));
+            } else {
+                console.log(logBody);
+            }
         },
         WITH(kv: Record<string, unknown>) {
             return makeLogger({

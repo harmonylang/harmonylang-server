@@ -1,10 +1,34 @@
 import child_process from 'child_process';
 import * as path from "path";
-import {HARMONY_DIR} from "../config";
+import {HARMONY_DIR, HTML_RESULTS_DIR} from "../config";
 import fs from "fs-extra";
 import express from "express";
 import rimraf from "rimraf";
 import {HarmonyLogger} from "../logger/logs";
+
+/**
+ * This will save the output HTML file in the {HTML_RESULTS_DIR}, for up to
+ * 15 minutes or when the server restarts.
+ * @param namespace
+ * @param logger
+ */
+function saveHarmonyHTML(namespace: string, logger: HarmonyLogger): boolean {
+    const htmlFile = path.join(namespace, "compiler", "harmony.html");
+    const destinationFile = path.join(HTML_RESULTS_DIR, path.basename(namespace) + ".html");
+    try {
+        if (!fs.existsSync(HTML_RESULTS_DIR)) {
+            fs.mkdirSync(HTML_RESULTS_DIR, {recursive: true});
+        }
+        fs.moveSync(htmlFile, destinationFile, {});
+    } catch (error) {
+        logger.WARN("Warning: failed to save harmony.json file.")
+        return false;
+    }
+    setTimeout(() => {
+        fs.removeSync(destinationFile)
+    }, 900000) // = 15 * 1000 * 60 (15 minutes)
+    return true;
+}
 
 /**
  * Removes an allocated namespace directory.
@@ -75,11 +99,13 @@ export function runHarmony(
             try {
                 let data = fs.readFileSync(path.join(copiedHarmonyDirectory, "charm.json"), {encoding: 'utf-8'});
                 const results = JSON.parse(data);
+                const didSaveHTML = saveHarmonyHTML(namespaceDirectory, logger)
                 if (results != null && results.issue != null && results.issue != "No issues") {
-                    res.send({
-                        status: "FAILURE",
-                        jsonData: results
-                    });
+                    const responseBody: Record<string, unknown> = {status: "FAILURE", jsonData: results};
+                    if (didSaveHTML) {
+                        responseBody.staticHtmlLocation = `/html_results/${path.basename(namespaceDirectory)}.html`;
+                    }
+                    res.send(responseBody);
                 } else {
                     res.send({status: "SUCCESS", message: stdout});
                 }
