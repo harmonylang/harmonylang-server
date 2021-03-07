@@ -6,6 +6,9 @@ import express from "express";
 import rimraf from "rimraf";
 import {HarmonyLogger} from "../logger/logs";
 
+
+const HTML_DURATION = 900000 // = 15 * 1000 * 60 (15 minutes)
+
 /**
  * This will save the output HTML file in the {HTML_RESULTS_DIR}, for up to
  * 15 minutes or when the server restarts.
@@ -26,7 +29,7 @@ function saveHarmonyHTML(namespace: string, logger: HarmonyLogger): boolean {
     }
     setTimeout(() => {
         fs.removeSync(destinationFile)
-    }, 900000) // = 15 * 1000 * 60 (15 minutes)
+    }, HTML_DURATION)
     return true;
 }
 
@@ -104,6 +107,7 @@ export function runHarmony(
                     const responseBody: Record<string, unknown> = {status: "FAILURE", jsonData: results};
                     if (didSaveHTML) {
                         responseBody.staticHtmlLocation = `/html_results/${path.basename(namespaceDirectory)}.html`;
+                        responseBody.duration = HTML_DURATION;
                     }
                     res.send(responseBody);
                 } else {
