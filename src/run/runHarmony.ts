@@ -83,7 +83,7 @@ export function runHarmony(
     }
 
     child_process.execFile('./harmony', [harmonyFile], {
-        cwd: copiedHarmonyDirectory, shell: true
+        cwd: copiedHarmonyDirectory, shell: true, timeout: 20000
     }, (err, stdout, stderr) => {
         if (err) {
             logger.INFO("Process led to error", {error: err.message, stderr});
