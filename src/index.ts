@@ -12,6 +12,7 @@ import {runHarmony} from "./run/runHarmony";
 import multer from 'multer';
 import {logClient} from "./logger/logs";
 import rimraf from "rimraf";
+import cors from 'cors';
 
 
 async function buildApp() {
@@ -21,6 +22,18 @@ async function buildApp() {
     app.disable('x-powered-by');
     app.use(bodyParser.json());
     app.use(bodyParser.urlencoded({extended: true}));
+
+    if (process.env.IS_DEVELOPMENT) {
+        app.use(cors());
+    } else {
+        app.use(cors({
+            origin: [
+                'localhost',
+                'http://harmony.cs.cornell.edu',
+                'https://harmony.cs.cornell.edu'
+            ]
+        }));
+    }
 
     try {
         rimraf.sync(PUBLIC_DIR);
