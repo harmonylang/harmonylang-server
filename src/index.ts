@@ -23,17 +23,7 @@ async function buildApp() {
     app.use(bodyParser.json());
     app.use(bodyParser.urlencoded({extended: true}));
 
-    if (process.env.IS_DEVELOPMENT) {
-        app.use(cors());
-    } else {
-        app.use(cors({
-            origin: [
-                'localhost',
-                'http://harmony.cs.cornell.edu',
-                'https://harmony.cs.cornell.edu'
-            ]
-        }));
-    }
+    app.use(cors());
 
     try {
         rimraf.sync(PUBLIC_DIR);
