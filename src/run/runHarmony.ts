@@ -7,7 +7,7 @@ import rimraf from "rimraf";
 import {HarmonyLogger} from "../logger/logs";
 
 
-const HTML_DURATION = 900000 // = 15 * 1000 * 60 (15 minutes)
+const HTML_DURATION = 300000 // = 5 * 1000 * 60 (5 minutes)
 
 /**
  * This will save the output HTML file in the {HTML_RESULTS_DIR}, for up to
@@ -68,7 +68,8 @@ export function runHarmony(
         copiedHarmonyDirectory = copyCompiler(namespaceDirectory);
     } catch (error) {
         logger.ERROR("Error copying the compiler into the namespace", {
-            namespace: path.basename(namespaceDirectory), error
+            namespace: path.basename(namespaceDirectory),
+            error: JSON.stringify(error) ?? ""
         });
         return res.sendStatus(500);
     }
@@ -86,7 +87,10 @@ export function runHarmony(
         cwd: copiedHarmonyDirectory, shell: true, timeout: 20000
     }, (err, stdout, stderr) => {
         if (err) {
-            logger.INFO("Process led to error", {error: err.message, stderr});
+            logger.INFO("Process led to error", {
+                error: JSON.stringify(err) ?? "",
+                stderr: JSON.stringify(stderr),
+            });
             if (err.message.startsWith("Command failed")) {
                 res.send({
                     status: "ERROR",
@@ -116,7 +120,8 @@ export function runHarmony(
                 logger.INFO("Successfully responded with result");
             } catch (error) {
                 logger.ERROR("Error encountered while parsing Harmony results", {
-                    error, namespace: path.basename(namespaceDirectory),
+                    error: JSON.stringify(error) ?? "",
+                    namespace: path.basename(namespaceDirectory),
                     responseCode: 500
                 })
                 res.sendStatus(500);
