@@ -1,10 +1,9 @@
 import child_process from 'child_process';
 import * as path from "path";
-import {HARMONY_DIR, HTML_RESULTS_DIR} from "../config";
+import {HARMONY_DIR, HTML_RESULTS_DIR, UPLOADS_DIR} from "../config";
 import fs from "fs-extra";
-import express from "express";
-import rimraf from "rimraf";
 import {HarmonyLogger} from "../logger/logs";
+import {CheckResponse} from "../schema/check";
 
 
 const HTML_DURATION = 300000 // = 5 * 1000 * 60 (5 minutes)
@@ -34,19 +33,6 @@ function saveHarmonyHTML(namespace: string, logger: HarmonyLogger): boolean {
 }
 
 /**
- * Removes an allocated namespace directory.
- * @param namespace
- * @param logger
- */
-function cleanup(namespace: string, logger: HarmonyLogger) {
-    rimraf(namespace, error => {
-        if (error) {
-            logger.WARN("Warning: failed to cleanup namespace", {namespace: path.basename(namespace)});
-        }
-    });
-}
-
-/**
  * Copies the contents of the Harmony compiler into the namespace directory as <namesapce>/compiler.
  * For convenience, the path to the directory that contains the copied compiler is returned.
  * @param namespace
@@ -57,76 +43,82 @@ function copyCompiler(namespace: string): string {
     return copiedDirectory;
 }
 
-export function runHarmony(
-    namespaceDirectory: string,
-    filename: string,
-    res: express.Response,
+export async function runHarmony(
+    namespace: string,
+    harmonyFile: string,
     logger: HarmonyLogger
-) {
+): Promise<CheckResponse> {
+    const namespaceDirectory = path.join(UPLOADS_DIR, namespace);
     let copiedHarmonyDirectory = "";
     try {
         copiedHarmonyDirectory = copyCompiler(namespaceDirectory);
     } catch (error) {
         logger.ERROR("Error copying the compiler into the namespace", {
-            namespace: path.basename(namespaceDirectory),
-            error: JSON.stringify(error) ?? ""
+            namespace, error: JSON.stringify(error) ?? ""
         });
-        return res.sendStatus(500);
+        return {
+            status: "INTERNAL",
+            message: "Internal error detected while compiling the Harmony program"
+        };
     }
-    const harmonyFile = filename;
     if (!fs.existsSync(harmonyFile) || !fs.statSync(harmonyFile).isFile()) {
         logger.ERROR("Filename does not exist", {
-            harmonyFile, code: 404, namespace: path.basename(namespaceDirectory)
+            harmonyFile, responseCode: 404, namespace
         });
-        res.sendStatus(404);
-        cleanup(namespaceDirectory, logger);
-        return;
+        return {
+            status: "INTERNAL",
+            message: "Cannot find Harmony file to compile"
+        };
     }
 
-    child_process.execFile('./harmony', [harmonyFile], {
-        cwd: copiedHarmonyDirectory, shell: true, timeout: 20000
-    }, (err, stdout, stderr) => {
-        if (err) {
-            logger.INFO("Process led to error", {
-                error: JSON.stringify(err) ?? "",
-                stderr: JSON.stringify(stderr),
-            });
-            if (err.message.startsWith("Command failed")) {
-                res.send({
-                    status: "ERROR",
-                    message: "Failed to execute Harmony file"
-                })
-            } else {
-                res.send({
-                    status: "ERROR",
-                    message: err.message
+    return new Promise<CheckResponse>((resolve) => {
+        child_process.execFile('./harmony', [harmonyFile], {
+            cwd: copiedHarmonyDirectory, shell: true, timeout: 20000
+        }, (err, stdout, stderr) => {
+            if (err) {
+                logger.INFO("Process led to error", {
+                    error: JSON.stringify(err) ?? "",
+                    stderr: JSON.stringify(stderr),
                 });
-            }
-        } else {
-            try {
-                let data = fs.readFileSync(path.join(copiedHarmonyDirectory, "charm.json"), {encoding: 'utf-8'});
-                const results = JSON.parse(data);
-                const didSaveHTML = saveHarmonyHTML(namespaceDirectory, logger)
-                if (results != null && results.issue != null && results.issue != "No issues") {
-                    const responseBody: Record<string, unknown> = {status: "FAILURE", jsonData: results};
-                    if (didSaveHTML) {
-                        responseBody.staticHtmlLocation = `/html_results/${path.basename(namespaceDirectory)}.html`;
-                        responseBody.duration = HTML_DURATION;
-                    }
-                    res.send(responseBody);
+                if (err.message.startsWith("Command failed")) {
+                    resolve({
+                        status: "ERROR",
+                        message: "Failed to execute Harmony file"
+                    })
                 } else {
-                    res.send({status: "SUCCESS", message: stdout});
+                    resolve({
+                        status: "ERROR",
+                        message: err.message
+                    });
                 }
-                logger.INFO("Successfully responded with result");
-            } catch (error) {
-                logger.ERROR("Error encountered while parsing Harmony results", {
-                    error: JSON.stringify(error) ?? "",
-                    namespace: path.basename(namespaceDirectory),
-                    responseCode: 500
-                })
-                res.sendStatus(500);
+            } else {
+                try {
+                    const data = fs.readFileSync(path.join(copiedHarmonyDirectory, "charm.json"), {encoding: 'utf-8'});
+                    const results = JSON.parse(data);
+                    const didSaveHTML = saveHarmonyHTML(namespaceDirectory, logger);
+                    logger.INFO("Successfully responded with result");
+                    if (results != null && results.issue != null && results.issue != "No issues") {
+                        const responseBody: CheckResponse = {status: "FAILURE", jsonData: results};
+                        if (didSaveHTML) {
+                            responseBody.staticHtmlLocation = `/html_results/${path.basename(namespaceDirectory)}.html`;
+                            responseBody.duration = HTML_DURATION;
+                        }
+                        resolve(responseBody);
+                    } else {
+                        resolve({status: "SUCCESS", message: stdout});
+                    }
+                } catch (error) {
+                    logger.ERROR("Error encountered while parsing Harmony results", {
+                        error: JSON.stringify(error) ?? "",
+                        namespace,
+                        responseCode: 500
+                    });
+                    resolve({
+                        status: "INTERNAL",
+                        message: "Error encountered while parsing Harmony file results"
+                    });
+                }
             }
-        }
-        cleanup(namespaceDirectory, logger);
+        });
     });
 }

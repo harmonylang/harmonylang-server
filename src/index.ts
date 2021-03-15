@@ -10,12 +10,13 @@ import {PUBLIC_DIR, UPLOADS_DIR} from "./config";
 import AdmZip from 'adm-zip';
 import {runHarmony} from "./run/runHarmony";
 import multer from 'multer';
-import {logClient} from "./logger/logs";
+import {HarmonyLogger, logClient} from "./logger/logs";
 import rimraf from "rimraf";
 import cors from 'cors';
+import {CheckRequest} from "./schema/check";
 
 
-async function buildApp() {
+export function buildApp() {
     const upload = multer();
 
     const app = express();
@@ -27,9 +28,13 @@ async function buildApp() {
 
     try {
         rimraf.sync(PUBLIC_DIR);
-        fsSync.mkdirSync(PUBLIC_DIR);
     } catch (e) {
-        logClient.WARN("Warning: failed to delete public directory.");
+        logClient.WARN("Failed to delete public directory.");
+    }
+    try {
+        fsSync.mkdirSync(PUBLIC_DIR, {recursive: true});
+    } catch (e) {
+        logClient.WARN("Failed to make public directory.");
     }
     app.use(express.static('public'));
 
@@ -41,30 +46,43 @@ async function buildApp() {
         return res.redirect("https://harmony.cs.cornell.edu/");
     });
 
+    /**
+     * Removes an allocated namespace directory.
+     * @param namespace
+     * @param logger
+     */
+    function cleanup(namespace: string, logger: HarmonyLogger) {
+        rimraf(path.join(UPLOADS_DIR, namespace), error => {
+            if (error) {
+                logger.WARN("Warning: failed to cleanup namespace", {
+                    namespace,
+                    error: error.message,
+                    errorName: error.name,
+                    errorStack: error.stack ?? ""
+                });
+            }
+        });
+    }
+
     app.post("/check", upload.single("file"), async (req, res) => {
-        type CheckResponse = {
-            status: "SUCCESS" | "ERROR";
-            message: string;
-        } | {
-            status: "FAILURE";
-            jsonData: Record<string, unknown>;
-            staticHtmlLocation?: string;
-            duration?: number;
-        };
-        const {main: pathToMainFile, version, source} = req.body;
+        const reqBody: CheckRequest = req.body;
+        const {main: pathToMainFile, version, source} = reqBody;
         const logger = logClient
         .WITH({id: generateNamespace(() => true) ?? ""})
         .WITH({version: version ?? "", source: source ?? ""})
 
         logger.INFO("Received request");
         if (!pathToMainFile) {
-            return res.sendStatus(400);
+            return res.status(400).send({
+                status: "ERROR",
+                message: "Path to main Harmony file is missing"
+            });
         }
 
         let main: string | null | undefined = "";
         if (source === "web-ide") {
             main = JSON.parse(pathToMainFile).join(path.sep);
-        } else if (version != null && typeof version === "string" && source === "vscode") {
+        } else if (version != null && source === "vscode") {
             const [major, minor, patch] = version.split(".").map(v => Number.parseInt(v));
             if (major >= 0 && minor >= 2 && patch >= 6) {
                 main = JSON.parse(pathToMainFile).join(path.sep);
@@ -74,7 +92,10 @@ async function buildApp() {
             main = pathToMainFile;
         }
         if (main == null) {
-            return res.status(400).send("No main file was declared");
+            return res.status(400).send({
+                status: "ERROR",
+                message: "No main Harmony file is declared"
+            });
         }
         const zippedFile = req.file;
         if (zippedFile == null) {
@@ -83,7 +104,6 @@ async function buildApp() {
         logger.INFO("Uploaded file metadata", {
             size: zippedFile.size
         });
-        // Ensure there is only file being sent.
         const namespace = generateNamespace((name) => {
             return !fsSync.existsSync(path.join(UPLOADS_DIR, name));
         })
@@ -120,18 +140,25 @@ async function buildApp() {
         new AdmZip(filename).extractAllTo(harmonyDirectory);
 
         // Run the Harmony model checker.
-        return runHarmony(
-            path.join(UPLOADS_DIR, namespace),
-            path.join(harmonyDirectory, main),
-            res,
-            logger
-        );
+        const response = await runHarmony(namespace, path.join(harmonyDirectory, main), logger);
+        cleanup(namespace, logger);
+        if (response.status === "FAILURE") {
+            return res.send(response);
+        } else if (response.status === "INTERNAL"){
+            return res.status(500).send(response);
+        } else {
+            return res.status(400).send(response);
+        }
     });
+    return app;
+}
 
+
+if (require.main === module) {
     const PORT = process.env.PORT || 8080;
+
+    const app = buildApp()
     app.listen(PORT, () => {
         console.log(`Server is listening on port ${PORT}`);
     });
 }
-
-buildApp().catch(e => console.log(e));

@@ -40,9 +40,9 @@ try {
 }
 
 export type HarmonyLogger = {
-    INFO(message: string, kv?: Record<string, unknown>): void,
-    WARN(message: string, kv?: Record<string, unknown>): void
-    ERROR(message: string, kv?: Record<string, unknown>): void
+    INFO(message: string, kv?: Record<string, number | string | boolean>): void,
+    WARN(message: string, kv?: Record<string, number | string | boolean>): void
+    ERROR(message: string, kv?: Record<string, number | string | boolean>): void
     WITH(kv: Record<string, number | string | boolean>): HarmonyLogger
 }
 
