@@ -42,12 +42,24 @@ async function buildApp() {
     });
 
     app.post("/check", upload.single("file"), async (req, res) => {
+        type CheckResponse = {
+            status: "SUCCESS" | "ERROR";
+            message: string;
+        } | {
+            status: "FAILURE";
+            jsonData: Record<string, unknown>;
+            staticHtmlLocation?: string;
+            duration?: number;
+        };
         const {main: pathToMainFile, version, source} = req.body;
         const logger = logClient
         .WITH({id: generateNamespace(() => true) ?? ""})
         .WITH({version: version ?? "", source: source ?? ""})
 
         logger.INFO("Received request");
+        if (!pathToMainFile) {
+            return res.sendStatus(400);
+        }
 
         let main: string | null | undefined = "";
         if (source === "web-ide") {

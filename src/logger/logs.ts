@@ -43,7 +43,7 @@ export type HarmonyLogger = {
     INFO(message: string, kv?: Record<string, unknown>): void,
     WARN(message: string, kv?: Record<string, unknown>): void
     ERROR(message: string, kv?: Record<string, unknown>): void
-    WITH(kv: Record<string, unknown>): HarmonyLogger
+    WITH(kv: Record<string, number | string | boolean>): HarmonyLogger
 }
 
 export function makeLogger(kv?: Record<string, unknown>): HarmonyLogger {
