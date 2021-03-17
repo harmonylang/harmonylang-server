@@ -24,6 +24,7 @@ function saveHarmonyHTML(namespace: string, logger: HarmonyLogger): boolean {
         }
         fs.moveSync(htmlFile, destinationFile, {});
     } catch (error) {
+        console.log(error);
         logger.WARN("Warning: failed to save harmony.json file.")
         return false;
     }
@@ -119,10 +120,16 @@ export function runHarmony(
                 }
                 logger.INFO("Successfully responded with result");
             } catch (error) {
+                console.log(error);
+                if (fs.existsSync(namespaceDirectory)) {
+                    console.log(fs.readdirSync(namespaceDirectory));
+                } else {
+                    console.log("Cannot find directory!: " + namespaceDirectory);
+                }
                 logger.ERROR("Error encountered while parsing Harmony results", {
                     error: JSON.stringify(error) ?? "",
                     namespace: path.basename(namespaceDirectory),
-                    responseCode: 500
+                    responseCode: 500,
                 })
                 res.sendStatus(500);
             }
