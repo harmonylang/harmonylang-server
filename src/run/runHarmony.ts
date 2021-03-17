@@ -24,7 +24,6 @@ function saveHarmonyHTML(namespace: string, logger: HarmonyLogger): boolean {
         }
         fs.moveSync(htmlFile, destinationFile, {});
     } catch (error) {
-        console.log(error);
         logger.WARN("Warning: failed to save harmony.json file.")
         return false;
     }
@@ -107,9 +106,9 @@ export function runHarmony(
             try {
                 let data = fs.readFileSync(path.join(copiedHarmonyDirectory, "charm.json"), {encoding: 'utf-8'});
                 const results = JSON.parse(data);
-                const didSaveHTML = saveHarmonyHTML(namespaceDirectory, logger)
                 if (results != null && results.issue != null && results.issue != "No issues") {
                     const responseBody: Record<string, unknown> = {status: "FAILURE", jsonData: results};
+                    const didSaveHTML = saveHarmonyHTML(namespaceDirectory, logger);
                     if (didSaveHTML) {
                         responseBody.staticHtmlLocation = `/html_results/${path.basename(namespaceDirectory)}.html`;
                         responseBody.duration = HTML_DURATION;
@@ -121,6 +120,7 @@ export function runHarmony(
                 logger.INFO("Successfully responded with result");
             } catch (error) {
                 console.log(error);
+                console.log(err, "\n", stdout, "\n", stderr);
                 if (fs.existsSync(namespaceDirectory)) {
                     console.log(fs.readdirSync(namespaceDirectory));
                 } else {
@@ -130,6 +130,8 @@ export function runHarmony(
                     error: JSON.stringify(error) ?? "",
                     namespace: path.basename(namespaceDirectory),
                     responseCode: 500,
+                    stdout: stdout ?? "[none]",
+                    stderr: stderr ?? "[none]",
                 })
                 res.sendStatus(500);
             }
