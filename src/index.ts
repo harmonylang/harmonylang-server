@@ -6,13 +6,13 @@ import bodyParser from 'body-parser';
 import generateNamespace from "./genNamespace";
 import fsSync, {promises as fs} from "fs";
 import path from "path";
-import {PUBLIC_DIR, UPLOADS_DIR} from "./config";
+import {HTML_RESULTS_DIR, PUBLIC_DIR} from "./config";
 import AdmZip from 'adm-zip';
-import {runHarmony} from "./run/runHarmony";
 import multer from 'multer';
 import {logClient} from "./logger/logs";
 import rimraf from "rimraf";
 import cors from 'cors';
+import {cleanup, containerizedHarmonyRun, createNamespace} from "./docker/containerIzedRun";
 
 
 async function buildApp() {
@@ -28,6 +28,7 @@ async function buildApp() {
     try {
         rimraf.sync(PUBLIC_DIR);
         fsSync.mkdirSync(PUBLIC_DIR);
+        fsSync.mkdirSync(HTML_RESULTS_DIR);
     } catch (e) {
         logClient.WARN("Warning: failed to delete public directory.");
     }
@@ -71,49 +72,38 @@ async function buildApp() {
         logger.INFO("Uploaded file metadata", {
             size: zippedFile.size
         });
+
+        const namespace = createNamespace(main);
         // Ensure there is only file being sent.
-        const namespace = generateNamespace((name) => {
-            return !fsSync.existsSync(path.join(UPLOADS_DIR, name));
-        })
         if (namespace == null) {
             logger.WARN("Failed to generate a uuid. May be a sign the uploads directory is too big, or we were" +
                 " severely unlucky");
-            return res.status(400).send("Your request could not be served at this time. Please try again later");
-        }
-
-        // Create a directory to hold the zip file.
-        const zipDirectory = path.join(UPLOADS_DIR, namespace, "zips");
-        try {
-            await fs.mkdir(zipDirectory, {recursive: true});
-        } catch (error) {
-            logger.ERROR("Error making an empty zip directory", {
-                namespace, error
+            return res.status(400).send({
+                status: "ERROR",
+                message: "Your request could not be served at this time. Please try again later"
             });
-            return res.sendStatus(500)
         }
 
-        // Write the zip file to the zip directory.
-        const filename = path.join(zipDirectory, zippedFile.originalname);
+        const zipFilename = path.join(namespace.directory, zippedFile.originalname)
         try {
-            await fs.writeFile(filename, zippedFile.buffer);
+            await fs.writeFile(zipFilename, zippedFile.buffer);
         } catch (error) {
             logger.ERROR("Error writing the zip file to a zip directory", {
-                namespace, error
+                namespace, error: JSON.stringify(error)
             });
-            return res.sendStatus(500);
+            return res.status(500).send({
+                status: "INTERNAL",
+                message: "Failed to save uploaded file"
+            });
         }
 
         // Create a directory to extract the source files from the zip into.
-        const harmonyDirectory = path.join(UPLOADS_DIR, namespace, "source");
-        new AdmZip(filename).extractAllTo(harmonyDirectory);
+        new AdmZip(zipFilename).extractAllTo(namespace.directory);
 
         // Run the Harmony model checker.
-        return runHarmony(
-            path.join(UPLOADS_DIR, namespace),
-            path.join(harmonyDirectory, main),
-            res,
-            logger
-        );
+        const response = await containerizedHarmonyRun(namespace, logger);
+        cleanup(namespace, logger);
+        return res.status(response.code).send(response);
     });
 
     const PORT = process.env.PORT || 8080;

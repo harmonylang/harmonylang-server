@@ -86,7 +86,7 @@ $PYTHON - $@ <<'++++++'
 """
 
 version = [
-1,1, 1442
+1,1, 1454
 
 ]
 
@@ -921,6 +921,8 @@ void onestep(struct node *node, uint64_t ctx, uint64_t choice, bool interrupt,
                 (*oi->op)(code[pc].env, sc, &cc);
             }
         }
+		assert(cc->pc >= 0);
+		assert(cc->pc < code_len);
 
         if (!cc->terminated && cc->failure == 0 && (infloop_detect || loopcnt > 1000)) {
             if (infloop == NULL) {
@@ -957,6 +959,8 @@ void onestep(struct node *node, uint64_t ctx, uint64_t choice, bool interrupt,
             fprintf(stderr, ">>> %s\n", oi->name);
         }
         assert(cc->pc != pc);
+		assert(cc->pc >= 0);
+		assert(cc->pc < code_len);
 
         /* Peek at the next instruction.
          */
@@ -1768,10 +1772,10 @@ static int find_scc(void){
     return count;
 }
 
-static char *json_string_encode(char *s){
-    char *result = malloc(4 * strlen(s)), *p = result;
+static char *json_string_encode(char *s, int len){
+    char *result = malloc(4 * len), *p = result;
 
-    while (*s != 0) {
+    while (len > 0) {
         switch (*s) {
         case '\r':
             *p++ = '\\'; *p++ = 'r';
@@ -1795,6 +1799,7 @@ static char *json_string_encode(char *s){
             *p++ = *s;
         }
         s++;
+        len--;
     }
     *p++ = 0;
     return result;
@@ -1824,43 +1829,11 @@ static void enum_loc(void *env, const void *key, unsigned int key_size,
 
     struct json_value *line = dict_lookup(jv->u.map, "line", 4);
     assert(line->type == JV_ATOM);
-    fprintf(out, "\"line\": \"%.*s\"", line->u.atom.len, line->u.atom.base);
+    fprintf(out, "\"line\": \"%.*s\", ", line->u.atom.len, line->u.atom.base);
 
-    // parse the line number
-    char *cline = malloc(line->u.atom.len + 1);
-    strncpy(cline, line->u.atom.base, line->u.atom.len);
-    cline[line->u.atom.len] = 0;
-    int lineno = atoi(cline);
-    free(cline);
-
-    // copy the file name
-    char *cfile = malloc(file->u.atom.len + 1);
-    strncpy(cfile, file->u.atom.base, file->u.atom.len);
-    cfile[file->u.atom.len] = 0;
-
-    // TODO.  Should cache the contents of the file
-    // TODO.  What to do with "internal" modules?
-    FILE *fp = fopen(cfile, "r");
-    if (fp == NULL) {
-        fprintf(out, ", \"code\": \"can't open %s\"", cfile);
-    }
-    else {
-        char buf[1024];
-        while (fgets(buf, 1024, fp) != NULL) {
-            if (--lineno == 0) {
-                buf[1023] = 0;
-                int len = strlen(buf);
-                if (len > 0 && buf[len - 1] == '\n') {
-                    buf[len - 1] = 0;
-                }
-                char *enc = json_string_encode(buf);
-                fprintf(out, ", \"code\": \"%s\"", enc);
-                free(enc);
-                break;
-            }
-        }
-        fclose(fp);
-    }
+    struct json_value *code = dict_lookup(jv->u.map, "code", 4);
+    assert(code->type == JV_ATOM);
+    fprintf(out, "\"code\": \"%s\"", json_string_encode(code->u.atom.base, code->u.atom.len));
     fprintf(out, " }");
 }
 
@@ -2200,7 +2173,7 @@ int main(int argc, char **argv){
 
     FILE *out = fopen("charm.json", "w");
     if (out == NULL) {
-        fprintf(stderr, "charm: can't create charm.json");
+        fprintf(stderr, "charm: can't create charm.json\n");
         exit(1);
     }
     fprintf(out, "{\n");
@@ -3549,6 +3522,12 @@ void op_Cut(const void *env, struct state *state, struct context **pctx){
 void ext_Del(const void *env, struct state *state, struct context **pctx,
                                                         struct access_info *ai){
     assert((state->vars & VALUE_MASK) == VALUE_DICT);
+
+    if ((*pctx)->readonly > 0) {
+        ctx_failure(*pctx, "Can't update state in assert or invariant");
+        return;
+    }
+
     uint64_t av = ctx_pop(pctx);
     if ((av & VALUE_MASK) != VALUE_ADDRESS) {
         ctx_failure(*pctx, "Del: not an address");
@@ -4161,7 +4140,7 @@ void ext_Store(const void *env, struct state *state, struct context **pctx,
     assert((state->vars & VALUE_MASK) == VALUE_DICT);
 
     if ((*pctx)->readonly > 0) {
-        ctx_failure(*pctx, "Store: in read-only mode");
+        ctx_failure(*pctx, "Can't update state in assert or invariant (including acquiring locks)");
         return;
     }
 
@@ -5923,6 +5902,7 @@ uint64_t value_put_address(void *p, int size){
 }
 
 uint64_t value_put_context(struct context *ctx){
+	assert(ctx->pc >= 0);
     int size = sizeof(*ctx) + (ctx->sp * sizeof(uint64_t));
     void *q = dict_find(context_map, ctx, size);
     return (uint64_t) q | VALUE_CONTEXT;
@@ -7889,6 +7869,11 @@ def load_string(all, filename, scope, code):
 
     # Compile again with the real values of the methods and label constants
     ast.compile(scope, code)
+
+    for (lexeme, file, line, column) in ast.getLabels():
+        (t, v) = scope.names[lexeme]
+        (pc, file, line, columv) = v
+        assert pc != tmp, ("not all labels have been filled", lexeme, v)
 
 def load(f, filename, scope, code):
     if filename in files:
@@ -10732,7 +10717,28 @@ class AddressAST(AST):
     def isConstant(self, scope):
         return self.lv.isConstant(scope)
 
+    def check(self, lv, scope):
+        if isinstance(lv, NameAST):
+            (t, v) = scope.lookup(lv.name)
+            if t == "local":
+                print("can't take address of local variable", lv)
+                sys.exit(1)
+            if t == "constant":
+                print("can't take address of constant", lv)
+                sys.exit(1)
+            if t == "module":
+                print("can't take address of imported", lv)
+                sys.exit(1)
+        elif isinstance(lv, ApplyAST):
+            self.check(lv.method, scope)
+        elif isinstance(lv, PointerAST):
+            pass
+        else:
+            print("can't take address of", lv)
+            sys.exit(1)
+
     def gencode(self, scope, code):
+        self.check(self.lv, scope)
         self.lv.ph1(scope, code)
 
 class PassAST(AST):
@@ -13068,13 +13074,13 @@ def dumpCode(printCode, code, scope, f=sys.stdout):
                 print(file=f)
             else:
                 print(",", file=f)
-            print("    \"%d\": { \"file\": \"%s\", \"line\": \"%d\" }"%(pc, file, line), file=f, end="")
+            print("    \"%d\": { \"file\": \"%s\", \"line\": \"%d\", \"code\": %s }"%(pc, file, line, json.dumps(files[file][line-1])), file=f, end="")
         print(file=f)
         print("  }", file=f);
         print("}", file=f);
 
 config = {
-    "infile": "charm.c",
+    "infile": "$$home$$/.charm.c",
     "outfile": "$$home$$/.charm.exe",
     "compile": "gcc -O3 -std=c99 $$infile$$ -m64 -o $$outfile$$"
 }
@@ -13152,6 +13158,7 @@ def main():
             with open(conffile) as f:
                 config = json.load(f)
         else:
+            config["infile"] = "%s/.charm.c"%pathlib.Path.home()
             config["outfile"] = "%s/.charm.exe"%pathlib.Path.home()
             config["compile"] = "gcc -O3 -std=c99 %s -m64 -o %s"%(config["infile"], config["outfile"])
         if testflag:

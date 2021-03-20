@@ -1,6 +1,6 @@
 import * as path from "path";
 
-const PROJECT_DIR = path.join(__dirname, "..");
+const PROJECT_DIR = path.resolve(path.join(__dirname, ".."));
 export const UPLOADS_DIR = path.join(PROJECT_DIR, "uploads");
 export const HARMONY_DIR = path.join(PROJECT_DIR, "harmony-master");
 
