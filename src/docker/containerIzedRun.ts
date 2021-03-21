@@ -8,13 +8,13 @@ import child_process from "child_process";
 
 type RunResponse = {
     jsonData: Record<string, unknown>;
-    code: number;
+    code: 200;
     status: "FAILURE";
     staticHtmlLocation?: string;
     duration?: number;
 } | {
     status: "SUCCESS" | "ERROR" | "INTERNAL";
-    code: number;
+    code: 400 | 500 | 404;
     message: string;
 }
 
@@ -111,14 +111,14 @@ export async function containerizedHarmonyRun(
                     status: "ERROR",
                     message: err.message.startsWith("Command failed") ?
                         "Failed to execute Harmony file" : "Unknown error encountered",
-                    code: 200
+                    code: 400
                 });
             } else {
                 child_process.exec(dockerCommands.getJSON, (err, stdout, stderr) => {
                     if (err || stderr) {
                         console.log(err, stdout, stderr);
                         return resolve({
-                            code: 200,
+                            code: 500,
                             status: "INTERNAL",
                             message: "Failed to create Harmony model"
                         });
@@ -166,7 +166,7 @@ export async function containerizedHarmonyRun(
                             }
                             resolve(responseBody);
                         } else {
-                            resolve({code: 200, status: 'ERROR', message: stdout});
+                            resolve({code: 400, status: 'ERROR', message: stdout});
                         }
                         logger.INFO("Successfully responded with result");
                     });
