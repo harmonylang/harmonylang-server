@@ -31,7 +31,9 @@ async function buildApp() {
     } catch (e) {
         logClient.WARN("Warning: failed to delete public directory.");
     }
-    app.use(express.static('public'));
+    app.get('/html_results/:id',  async (req, res) => {
+        return res.redirect(AWS_HTTP_ENDPOINT + '/html_results/' + req.params.id);
+    });
 
     app.get('/', async (req, res) => {
         return res.redirect(AWS_HTTP_ENDPOINT + "/");
