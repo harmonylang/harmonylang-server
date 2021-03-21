@@ -48,7 +48,7 @@ export function createNamespace(mainFilename: string): CodeRunnerNamespace | nul
     }
     fs.mkdirSync(directory, {recursive: true});
 
-    const charmJSON = path.join(directory, "charm.exe.json");
+    const charmJSON = path.join(directory, "charm.json");
     const htmlFile = path.join(HTML_RESULTS_DIR, id + '.html');
     return {
         id,
@@ -67,7 +67,7 @@ function makeDockerCommands(
     return {
         run: `docker run -m 100M --memory-swap 100M --name ${namespace.id} -v ${namespace.directory}:/code -w /harmony -t harmony ./harmony -t ${harmonyFileArg}`,
         getJSON: `docker cp ${namespace.id}:/harmony/charm.json ${namespace.charmJSON}`,
-        getHTML: `docker cp ${namespace.id}:/harmony/harmony.json ${namespace.htmlFile}`,
+        getHTML: `docker cp ${namespace.id}:/harmony/harmony.html ${namespace.htmlFile}`,
         clean: `docker container rm ${namespace.id}`
     }
 }
