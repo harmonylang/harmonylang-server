@@ -7,28 +7,42 @@ type Event = () => Promise<void>;
  * This works because Node runs a single thread at a time in the event loop.
  * @param maxInParallel
  */
-function BuilderQueueRunner(maxInParallel: number) {
+export function BuilderQueueRunner(maxInParallel: number) {
     let runningProcesses = 0;
+    const maximum = Math.max(maxInParallel, 1);
     const queue: Event[] = [];
+    const waiting: (() => void)[] = [];
     const eventEmitter = new events.EventEmitter({captureRejections: true});
 
     eventEmitter.on("run-next", async () => {
-        const event = queue.pop();
-        if (event && runningProcesses <= maxInParallel) {
-            runningProcesses++;
-            await event();
-            eventEmitter.emit("complete");
+        if (runningProcesses < maximum) {
+            const event = queue.shift();
+            if (event) {
+                runningProcesses++;
+                await event();
+                eventEmitter.emit("complete");
+            }
         }
     });
     eventEmitter.on("complete", async () => {
         runningProcesses--;
+        if (queue.length === 0) {
+            waiting.forEach(w => w());
+            waiting.length = 0;
+        }
         eventEmitter.emit("run-next");
     });
-
-    function register(event: Event): void {
+    const register = (event: Event) => {
         queue.push(event);
         eventEmitter.emit("run-next");
     }
-    return {register};
+    const wait = async (): Promise<void> => {
+        return new Promise(resolve => {
+            if (queue.length === 0) {
+                resolve();
+            }
+            waiting.push(resolve);
+        })
+    }
+    return {register, wait};
 }
-
