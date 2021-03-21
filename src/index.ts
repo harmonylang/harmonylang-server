@@ -88,7 +88,7 @@ async function buildApp() {
             logger.ERROR("Error writing the zip file to a zip directory", {
                 namespace, error: JSON.stringify(error)
             });
-            return res.status(500).send("Failed to save uploaded file on the server");
+            return res.status(200).send("Failed to save uploaded file on the server");
         }
 
         // Create a directory to extract the source files from the zip into.
@@ -100,7 +100,7 @@ async function buildApp() {
         if (response.code === 200) {
             return res.status(response.code).send(response);
         } else {
-            return res.status(response.code).send(response.message)
+            return res.status(response.code).send(response.message);
         }
     });
 
