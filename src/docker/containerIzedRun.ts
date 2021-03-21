@@ -101,15 +101,18 @@ export async function containerizedHarmonyRun(
         child_process.exec(dockerCommands.run, {
             timeout: 20000
         }, (err, stdout, stderr) => {
-            if (err) {
+            const harmonyError = err;
+            const harmonyStdout = stdout;
+            const harmonyStderr = stderr;
+            if (harmonyError) {
                 logger.INFO("Process led to error", {
-                    error: JSON.stringify(err),
-                    stdout: stdout,
-                    stderr: stderr,
+                    error: JSON.stringify(harmonyError),
+                    stdout: harmonyStdout,
+                    stderr: harmonyStderr,
                 });
                 return resolve({
                     status: "ERROR",
-                    message: err.message.startsWith("Command failed") ?
+                    message: harmonyError.message.startsWith("Command failed") ?
                         "Failed to execute Harmony file" : "Unknown error encountered",
                     code: 400
                 });
@@ -139,13 +142,13 @@ export async function containerizedHarmonyRun(
                             results = JSON.parse(data);
                         } catch (error) {
                             console.log(error);
-                            console.log(err, "\n", stdout, "\n", stderr);
+                            console.log(harmonyError, "\n", harmonyStdout, "\n", harmonyStderr);
                             logger.ERROR("Error encountered while parsing Harmony results", {
                                 error: JSON.stringify(error) ?? "",
                                 namespace: namespace.id,
                                 responseCode: 500,
-                                stdout: stdout ?? "[none]",
-                                stderr: stderr ?? "[none]",
+                                stdout: harmonyStdout ?? "[none]",
+                                stderr: harmonyStderr ?? "[none]",
                             })
                             return resolve({
                                 status: "INTERNAL",
@@ -166,7 +169,7 @@ export async function containerizedHarmonyRun(
                             }
                             resolve(responseBody);
                         } else {
-                            resolve({code: 400, status: 'ERROR', message: stdout});
+                            resolve({code: 400, status: 'ERROR', message: harmonyStdout});
                         }
                         logger.INFO("Successfully responded with result");
                     });
