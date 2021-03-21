@@ -13,11 +13,12 @@ import {logClient} from "./logger/logs";
 import rimraf from "rimraf";
 import cors from 'cors';
 import {cleanup, containerizedHarmonyRun, createNamespace} from "./docker/containerIzedRun";
+import {BuilderQueueRunner} from "./docker/queueRunner";
 
 
 async function buildApp() {
     const upload = multer();
-
+    const queueRunner = BuilderQueueRunner(3);
     const app = express();
     app.disable('x-powered-by');
     app.use(bodyParser.json());
@@ -101,9 +102,11 @@ async function buildApp() {
         new AdmZip(zipFilename).extractAllTo(namespace.directory);
 
         // Run the Harmony model checker.
-        const response = await containerizedHarmonyRun(namespace, logger);
-        cleanup(namespace, logger);
-        return res.status(response.code).send(response);
+        queueRunner.register(async () => {
+            const response = await containerizedHarmonyRun(namespace, logger);
+            cleanup(namespace, logger);
+            res.status(response.code).send(response);
+        });
     });
 
     const PORT = process.env.PORT || 8080;
