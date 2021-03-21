@@ -81,6 +81,25 @@ export function cleanup(namespace: CodeRunnerNamespace, logger: HarmonyLogger) {
     });
 }
 
+type ExecResult = {
+    error: child_process.ExecException | null;
+    stdout: string;
+    stderr: string;
+}
+
+async function executeCommand(cmd: string, options: child_process.ExecOptions): Promise<ExecResult> {
+    return new Promise<ExecResult>(resolve => {
+        child_process.exec(cmd, options, (error, stdout, stderr) => {
+            resolve({
+                error: error,
+                stdout: stdout,
+                stderr: stderr,
+            });
+        });
+    });
+}
+
+
 export async function containerizedHarmonyRun(
     namespace: CodeRunnerNamespace,
     logger: HarmonyLogger
@@ -97,84 +116,73 @@ export async function containerizedHarmonyRun(
         };
     }
     const dockerCommands = makeDockerCommands(namespace);
-    return new Promise<RunResponse>(resolve => {
-        child_process.exec(dockerCommands.run, {
-            timeout: 20000
-        }, (err, stdout, stderr) => {
-            const harmonyError = err;
-            const harmonyStdout = stdout;
-            const harmonyStderr = stderr;
-            if (harmonyError) {
-                logger.INFO("Process led to error", {
-                    error: JSON.stringify(harmonyError),
-                    stdout: harmonyStdout,
-                    stderr: harmonyStderr,
-                });
-                return resolve({
-                    status: "ERROR",
-                    message: harmonyError.message.startsWith("Command failed") ?
-                        "Failed to execute Harmony file" : "Unknown error encountered",
-                    code: 400
-                });
-            } else {
-                child_process.exec(dockerCommands.getJSON, (err, stdout, stderr) => {
-                    if (err || stderr) {
-                        console.log(err, stdout, stderr);
-                        return resolve({
-                            code: 500,
-                            status: "INTERNAL",
-                            message: "Failed to create Harmony model"
-                        });
-                    }
-                    child_process.exec(dockerCommands.getHTML, (err, stdout, stderr) => {
-                        const didSaveHTML = !err && !stderr;
-                        console.log(didSaveHTML);
-                        child_process.exec(dockerCommands.clean, (err, stdout, stderr) => {
-                            if (err || stderr) {
-                                logger.WARN("Failed to remove Docker container!", {
-                                    name: namespace.id
-                                });
-                            }
-                        });
-                        let results: any;
-                        try {
-                            const data = fs.readFileSync(namespace.charmJSON, {encoding: 'utf-8'});
-                            results = JSON.parse(data);
-                        } catch (error) {
-                            console.log(error);
-                            console.log(harmonyError, "\n", harmonyStdout, "\n", harmonyStderr);
-                            logger.ERROR("Error encountered while parsing Harmony results", {
-                                error: JSON.stringify(error) ?? "",
-                                namespace: namespace.id,
-                                responseCode: 500,
-                                stdout: harmonyStdout ?? "[none]",
-                                stderr: harmonyStderr ?? "[none]",
-                            })
-                            return resolve({
-                                status: "INTERNAL",
-                                message: "Failed to parse Harmony results",
-                                code: 500,
-                            });
-                        }
-                        if (results != null &&
-                            typeof results === "object" &&
-                            results.issue != null &&
-                            results.issue !== "No issues"
-                        ) {
-                            const responseBody: RunResponse = {status: "FAILURE", jsonData: results, code: 200};
-                            if (didSaveHTML) {
-                                responseBody.staticHtmlLocation = `/html_results/${namespace.id}.html`;
-                                responseBody.duration = HTML_DURATION;
-                                setTimeout(() => fs.removeSync(namespace.htmlFile), HTML_DURATION);
-                            }
-                            resolve(responseBody);
-                        } else {
-                            resolve({code: 400, status: 'ERROR', message: harmonyStdout});
-                        }
-                        logger.INFO("Successfully responded with result");
-                    });
-                });
-            }
+    const runResult = await executeCommand(dockerCommands.run, {timeout: 20000});
+    if (runResult.error) {
+        logger.INFO("Process led to error", {
+            error: JSON.stringify(runResult.error),
+            stdout: runResult.stdout,
+            stderr: runResult.stderr,
         });
-    });
+        await executeCommand(dockerCommands.clean, {timeout: 20000});
+        return {
+            code: 400,
+            status: "ERROR",
+            message: runResult.error.message.startsWith("Command failed") ?
+                "Failed to execute Harmony file" : "Unknown error encountered",
+        };
+    }
+
+    const getJsonResult = await executeCommand(dockerCommands.getJSON, {timeout: 10000});
+    if (getJsonResult.error || getJsonResult.stderr) {
+        console.log(getJsonResult);
+        await executeCommand(dockerCommands.clean, {timeout: 20000});
+        return {
+            code: 500,
+            status: "INTERNAL",
+            message: "Failed to create Harmony model"
+        };
+    }
+
+    const getHtmlResult = await executeCommand(dockerCommands.getHTML, {timeout: 10000});
+    const didSaveHTML = !getHtmlResult.error && !getHtmlResult.stderr;
+    if (!didSaveHTML) {
+        console.log(getHtmlResult);
+    }
+    await executeCommand(dockerCommands.clean, {timeout: 20000});
+    let results: any;
+    try {
+        const data = fs.readFileSync(namespace.charmJSON, {encoding: 'utf-8'});
+        results = JSON.parse(data);
+    } catch (error) {
+        console.log(error);
+        console.log(runResult);
+        logger.ERROR("Error encountered while parsing Harmony results", {
+            error: JSON.stringify(error) ?? "",
+            namespace: namespace.id,
+            responseCode: 500,
+            stdout: runResult.stdout ?? "[none]",
+            stderr: runResult.error ?? "[none]",
+        })
+        return {
+            code: 500,
+            status: "INTERNAL",
+            message: "Failed to parse Harmony results",
+        };
+    }
+    logger.INFO("Successfully responded with result");
+    if (results != null &&
+        typeof results === "object" &&
+        results.issue != null &&
+        results.issue !== "No issues"
+    ) {
+        const responseBody: RunResponse = {status: "FAILURE", jsonData: results, code: 200};
+        if (didSaveHTML) {
+            responseBody.staticHtmlLocation = `/html_results/${namespace.id}.html`;
+            responseBody.duration = HTML_DURATION;
+            setTimeout(() => fs.removeSync(namespace.htmlFile), HTML_DURATION);
+        }
+        return responseBody;
+    } else {
+        return {code: 400, status: 'ERROR', message: runResult.stdout};
+    }
 }

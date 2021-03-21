@@ -97,7 +97,6 @@ async function buildApp() {
         // Run the Harmony model checker.
         const response = await containerizedHarmonyRun(namespace, logger);
         cleanup(namespace, logger);
-        console.log(response);
         if (response.code === 200) {
             return res.status(response.code).send(response);
         } else {
