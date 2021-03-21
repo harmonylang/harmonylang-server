@@ -3,7 +3,7 @@
 
 true <<'++COPYRIGHT++'
 Copyright (C) 2020  Robbert van Renesse
-	
+
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions
 are met:
@@ -86,7 +86,7 @@ $PYTHON - $@ <<'++++++'
 """
 
 version = [
-1,1, 1454
+1,1, 1455
 
 ]
 
@@ -125,7 +125,7 @@ def release(binsema):
     atomic:
         assert !binsema
         !binsema = False
-    
+
 def held(binsema):
     result = !binsema
 
@@ -164,7 +164,7 @@ def P(sema):
                     blocked = False
 def V(sema):
     atomic: !sema += 1
-    
+
 def Queue():
     result = []
 
@@ -233,13 +233,13 @@ def notify(c):
         if !c != []:
             go (list.head(!c)) ()
             !c = list.tail(!c)
-        
+
 def notifyAll(c):
     atomic:
         while !c != []:
             go (list.head(!c)) ()
             !c = list.tail(!c)
-        
+
 def Semaphore(cnt):
     result = { .count: cnt, .waiters: [] }
 
@@ -249,7 +249,7 @@ def P(sema):
             sema->count -= 1
         else:
             stop sema->waiters[len sema->waiters]
-        
+
 def V(sema):
     atomic:
         let cnt, waiters = sema->count, sema->waiters:
@@ -267,7 +267,7 @@ def get(q):
     atomic:
         if q->list == []:
             stop q->waiters[len q->waiters]
-        
+
         result = list.head(q->list)
         q->list = list.tail(q->list)
 
@@ -321,7 +321,7 @@ def enumerate(d):
         for k in keys d:
             result += [ (index, d[k]), ]
             index += 1
-        
+
 # quicksort of a list
 def qsort(a):
     if a == []:
@@ -375,7 +375,7 @@ def add(pb, elt):
 def remove(pb, elt):
     if (elt in keys(!pb)) and ((!pb)[elt] > 0):
         (!pb)[elt] -= 1
-    
+
     if (!pb)[elt] <= 0:
         del (!pb)[elt]
 """,
@@ -432,7 +432,7 @@ struct keynode {
 	unsigned int len;
 	HASHDICT_VALUE_TYPE value;
 };
-		
+
 struct dict {
 	struct keynode **table;
 	int length, count;
@@ -457,7 +457,7 @@ typedef struct json_buf {
     int len;
 } json_buf_t;
 
-struct json_value { 
+struct json_value {
 	enum { JV_ATOM, JV_MAP, JV_LIST } type;
 	union {
 		json_buf_t atom;
@@ -997,7 +997,7 @@ void onestep(struct node *node, uint64_t ctx, uint64_t choice, bool interrupt,
             break;
         }
     }
-    
+
     if (infloop != NULL) {
         dict_delete(infloop);
     }
@@ -1700,7 +1700,7 @@ void path_dump(FILE *file, struct node *last, uint64_t ctx, uint64_t choice,
         }
     }
     free(matched);
-  
+
     print_state(file, node);
     fprintf(file, "    }");
 }
@@ -1804,7 +1804,7 @@ static char *json_string_encode(char *s, int len){
     *p++ = 0;
     return result;
 }
-            
+
 
 static void enum_loc(void *env, const void *key, unsigned int key_size,
                                 HASHDICT_VALUE_TYPE value){
@@ -2862,7 +2862,7 @@ struct json_value *json_lookup_map(struct dict *map, char *key){
 	return jv;
 }
 
-/* Find a json_value (can be either a JV_MAP or JV_ATOM) 
+/* Find a json_value (can be either a JV_MAP or JV_ATOM)
  * inside the map by string key.
  */
 struct json_value *json_lookup_value(struct dict *map, char *key){
@@ -3071,7 +3071,7 @@ struct var_tree *var_parse(char *s, int len, int *index){
 
 void ctx_push(struct context **pctx, uint64_t v){
 	assert(*pctx != NULL);
-    struct context *ctx = realloc(*pctx, sizeof(struct context) + 
+    struct context *ctx = realloc(*pctx, sizeof(struct context) +
                 ((*pctx)->sp + 1) * sizeof(uint64_t));
 
     ctx->stack[ctx->sp++] = v;
@@ -3116,7 +3116,7 @@ uint64_t dict_load(uint64_t dict, uint64_t key){
         if (vals[i] == key) {
             return vals[i + 1];
         }
-        /* 
+        /*
             if (value_cmp(vals[i], key) > 0) {
                 break;
             }
@@ -3156,7 +3156,7 @@ uint64_t dict_remove(uint64_t dict, uint64_t key){
             free(copy);
             return v;
         }
-        /* 
+        /*
             if (value_cmp(vals[i], key) > 0) {
                 assert(false);
             }
@@ -3189,7 +3189,7 @@ bool dict_tryload(uint64_t dict, uint64_t key, uint64_t *result){
             *result = vals[i + 1];
             return true;
         }
-        /* 
+        /*
             if (value_cmp(vals[i], key) > 0) {
                 break;
             }
@@ -3310,7 +3310,7 @@ bool ind_trystore(uint64_t dict, uint64_t *indices, int n, uint64_t value, uint6
                 *result = v;
                 return true;
             }
-            /* 
+            /*
                 if (value_cmp(vals[i], key) > 0) {
                     assert(false);
                 }
@@ -3366,7 +3366,7 @@ bool ind_remove(uint64_t dict, uint64_t *indices, int n,
                 *result = v;
                 return true;
             }
-            /* 
+            /*
                 if (value_cmp(vals[i], key) > 0) {
                     assert(false);
                 }
@@ -3599,7 +3599,7 @@ void op_Frame(const void *env, struct state *state, struct context **pctx){
     if ((*pctx)->failure != 0) {
         return;
     }
- 
+
     ctx_push(pctx, oldvars);
     ctx_push(pctx, ((*pctx)->fp << VALUE_BITS) | VALUE_INT);
 
@@ -4692,7 +4692,7 @@ uint64_t f_intersection(struct state *state, struct context *ctx, uint64_t *args
         // get all the sets
 		assert(n > 0);
         struct val_info *vi = malloc(n * sizeof(*vi));
-		vi[0].vals = value_get(args[0], &vi[0].size); 
+		vi[0].vals = value_get(args[0], &vi[0].size);
 		vi[0].index = 0;
         int min_size = vi[0].size;              // minimum set size
         uint64_t max_val = vi[0].vals[0];       // maximum value over the minima of all sets
@@ -4704,7 +4704,7 @@ uint64_t f_intersection(struct state *state, struct context *ctx, uint64_t *args
                 min_size = 0;
             }
             else {
-                vi[i].vals = value_get(args[i], &vi[i].size); 
+                vi[i].vals = value_get(args[i], &vi[i].size);
                 vi[i].index = 0;
 				if (vi[i].size < min_size) {
 					min_size = vi[i].size;
@@ -4791,7 +4791,7 @@ uint64_t f_intersection(struct state *state, struct context *ctx, uint64_t *args
             vi[i].size = 0;
         }
         else {
-            vi[i].vals = value_get(args[i], &vi[i].size); 
+            vi[i].vals = value_get(args[i], &vi[i].size);
             total += vi[i].size;
         }
     }
@@ -5139,7 +5139,7 @@ uint64_t f_plus(struct state *state, struct context *ctx, uint64_t *args, int n)
             vi[i].size = 0;
         }
         else {
-            vi[i].vals = value_get(args[i], &vi[i].size); 
+            vi[i].vals = value_get(args[i], &vi[i].size);
             total += vi[i].size;
         }
     }
@@ -5473,7 +5473,7 @@ uint64_t f_union(struct state *state, struct context *ctx, uint64_t *args, int n
                 vi[i].size = 0;
             }
             else {
-                vi[i].vals = value_get(args[i], &vi[i].size); 
+                vi[i].vals = value_get(args[i], &vi[i].size);
                 total += vi[i].size;
             }
         }
@@ -5513,7 +5513,7 @@ uint64_t f_union(struct state *state, struct context *ctx, uint64_t *args, int n
             vi[i].size = 0;
         }
         else {
-            vi[i].vals = value_get(args[i], &vi[i].size); 
+            vi[i].vals = value_get(args[i], &vi[i].size);
             total += vi[i].size;
         }
     }
@@ -5578,7 +5578,7 @@ uint64_t f_xor(struct state *state, struct context *ctx, uint64_t *args, int n){
             vi[i].size = 0;
         }
         else {
-            vi[i].vals = value_get(args[i], &vi[i].size); 
+            vi[i].vals = value_get(args[i], &vi[i].size);
             total += vi[i].size;
         }
     }
@@ -6682,9 +6682,9 @@ def brief_string(js):
         lst = [ brief_kv(kv) for kv in v ]
         keys = [ k for k,v in lst ]
         if keys == [str(i) for i in range(len(v))]:
-            return "[ " + ", ".join([v for k,v in lst]) + " ]" 
+            return "[ " + ", ".join([v for k,v in lst]) + " ]"
         else:
-            return "{ " + ", ".join([k + ": " + v for k,v in lst]) + " }" 
+            return "{ " + ", ".join([k + ": " + v for k,v in lst]) + " }"
     if type == "pc":
         return "PC(%s)"%v
     if type == "address":
@@ -6803,7 +6803,7 @@ class GenHTML:
 }
 #table-scroll {
   height:200px;
-  overflow:auto;  
+  overflow:auto;
 }
 #table-wrapper table {
   width:100%;
@@ -6812,7 +6812,7 @@ class GenHTML:
   color:black;
 }
 #table-wrapper table thead th .text {
-  position:absolute;   
+  position:absolute;
   top:-20px;
   z-index:2;
   height:20px;
@@ -7216,7 +7216,7 @@ function init_microstep(masidx, misidx) {
   }
 
   // Update local variables
-  var trl = microsteps[t].trace.length; 
+  var trl = microsteps[t].trace.length;
   if (trl > 0 && mis.hasOwnProperty("local")) {
     // deep copy first
     microsteps[t].trace = JSON.parse(JSON.stringify(microsteps[t].trace))
@@ -7468,7 +7468,7 @@ document.addEventListener('keydown', handleKeyPress);
         if type == "dict":
             if v == []:
                 return "()"
-            return "{ " + ", ".join([ self.json_kv(kv) for kv in v ]) + " }" 
+            return "{ " + ", ".join([ self.json_kv(kv) for kv in v ]) + " }"
         if type == "pc":
             return "PC(%s)"%v
         if type == "address":
@@ -7831,7 +7831,7 @@ def doImport(scope, code, module):
             else:
                 print("Can't find module", modname, "imported from", namestack)
                 sys.exit(1)
-        
+
         imported[lexeme] = scope2
 
     scope.names[lexeme] = ("module", imported[lexeme])
@@ -9392,7 +9392,7 @@ class NaryOp(Op):
                             if k2 not in e1.d:
                                 d[k2] = v2
                         e2 = DictValue(d)
-                elif op == "^": 
+                elif op == "^":
                     if type(e1) == int:
                         if not self.checktype(state, context, sa, type(e2) == int):
                             return
@@ -9784,7 +9784,7 @@ class AST:
             code.append(NaryOp(("IsEmpty", file, line, column), 1))
             tst = len(code)
             code.append(None)       # going to plug in a Jump op here
-            code.append(CutOp(S, var))  
+            code.append(CutOp(S, var))
             self.rec_comprehension(scope, code, iter[1:], pc, N, vars + [var], ctype)
             code.append(JumpOp(pc))
             code[tst] = JumpCondOp(True, len(code))
@@ -9848,7 +9848,7 @@ class AST:
                 else:
                     print("Can't find module", modname, "imported from", namestack)
                     sys.exit(1)
-            
+
             imported[lexeme] = scope2
 
         scope.names[lexeme] = ("module", imported[lexeme])
@@ -9904,6 +9904,9 @@ class NameAST(AST):
         if t == "local":
             (lexeme, file, line, column) = v
             code.append(PushOp((AddressValue([lexeme]), file, line, column)))
+        elif t == "constant":
+            print("constant cannot be an lvalue:", self.name)
+            sys.exit(1)
         else:
             assert t in { "global", "module" }
             (lexeme, file, line, column) = self.name
@@ -10376,7 +10379,7 @@ class ListComprehensionRule(Rule):
 
     def parse(self, t):
         token = t[0]
-        (lst, t) = self.iterParse(t[1:], self.closers) 
+        (lst, t) = self.iterParse(t[1:], self.closers)
         return (ListComprehensionAST(self.value, lst, token), t)
 
 class SetRule(Rule):
@@ -10518,7 +10521,7 @@ class BasicExpressionRule(Rule):
         if lexeme[0] == '"':
             return (TupleAST([ ConstantAST((c, file, line, column))
                                 for c in lexeme[1:] ], token), t[1:])
-        if lexeme == ".": 
+        if lexeme == ".":
             (lexeme, file, line, column) = t[1]
             if lexeme.startswith("0x"):
                 return (ConstantAST((chr(int(lexeme, 16)), file, line, column)), t[2:])
@@ -11130,7 +11133,7 @@ class LabelStatAST(AST):
 class SequentialAST(AST):
     def __init__(self, vars):
         self.vars = vars
-    
+
     def __repr__(self):
         return "Sequential(" + str(self.vars) + ")"
 
@@ -11534,7 +11537,7 @@ class StatementRule(Rule):
                     print("assert: unexpected token:", tokens[0])
                     sys.exit(1)
             return (AssertAST(token, cond, expr), t)
-        
+
         # If we get here, the next statement is either an expression
         # or an assignment.  The assignment grammar is either
         #   (tuple_expression '=')* tuple_expression
@@ -12074,7 +12077,7 @@ class Pad:
         self.descr = descr
         self.value = ""
         self.lastlen = 0
-    
+
     def __repr__(self):
         return self.descr + " = " + self.value
 
@@ -12894,7 +12897,7 @@ def htmldump(nodes, code, scope, node, fulldump, verbose):
 }
 #table-scroll {
   height:200px;
-  overflow:auto;  
+  overflow:auto;
 }
 #table-wrapper table {
   width:100%;
@@ -12903,7 +12906,7 @@ def htmldump(nodes, code, scope, node, fulldump, verbose):
   color:black;
 }
 #table-wrapper table thead th .text {
-  position:absolute;   
+  position:absolute;
   top:-20px;
   z-index:2;
   height:20px;
@@ -13168,33 +13171,7 @@ def main():
             os.close(fd)
         with open(tmpfile, "w") as fd:
             dumpCode("json", code, scope, f=fd)
-        path = pathlib.Path(config["outfile"])
-        rebuild = testflag or not path.exists()
-        if not rebuild:
-            st = path.stat()
-            now = time.time()
-            if now - st.st_mtime > 15 * 60:
-                rebuild = True
-        if rebuild:
-            with open(config["infile"], "w") as fd:
-                if not testflag:
-                    print("#define NDEBUG", file=fd)
-                print("#define HARMONY_COMBINE", file=fd)
-                print(charm_src, file=fd)
-            if testflag:
-                # if os.name == "nt":
-                #     r = os.system("cl %s /link /out:%s"%(config["infile"], config["outfile"]))
-                # else:
-                    r = os.system("gcc -g -std=c99 %s -m64 -o %s"%(config["infile"], config["outfile"]))
-            else:
-                # if os.name == "nt":
-                #     r = os.system("cl %s /link /out:%s"%(config["infile"], config["outfile"]))
-                # else:
-                    r = os.system(config["compile"]);
-            if r != 0:
-                print("can't create charm model checker")
-                sys.exit(r);
-        r = os.system("%s %s"%(config["outfile"], tmpfile));
+        r = os.system("./charm %s"%(tmpfile));
         if not testflag:
             os.remove(tmpfile)
         if r != 0:
