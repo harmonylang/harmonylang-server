@@ -121,5 +121,3 @@ harmony-prepare/
 uploads/
 resource/**/*.json
 public/
-harmony-master/charm
-harmony-master/harmony.*
