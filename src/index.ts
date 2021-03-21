@@ -6,7 +6,7 @@ import bodyParser from 'body-parser';
 import generateNamespace from "./genNamespace";
 import fsSync, {promises as fs} from "fs";
 import path from "path";
-import {HTML_RESULTS_DIR, PUBLIC_DIR} from "./config";
+import {AWS_HTTP_ENDPOINT, HTML_RESULTS_DIR, PUBLIC_DIR} from "./config";
 import AdmZip from 'adm-zip';
 import multer from 'multer';
 import {logClient} from "./logger/logs";
@@ -22,7 +22,6 @@ async function buildApp() {
     app.disable('x-powered-by');
     app.use(bodyParser.json());
     app.use(bodyParser.urlencoded({extended: true}));
-
     app.use(cors());
 
     try {
@@ -35,75 +34,15 @@ async function buildApp() {
     app.use(express.static('public'));
 
     app.get('/', async (req, res) => {
-        res.sendStatus(200);
+        return res.redirect(AWS_HTTP_ENDPOINT + "/");
     });
 
     app.get('/home', (_, res) => {
-        return res.redirect("https://harmony.cs.cornell.edu/");
+        return res.redirect(AWS_HTTP_ENDPOINT + "/home");
     });
 
     app.post("/check", upload.single("file"), async (req, res) => {
-        const {main: pathToMainFile, version, source} = req.body;
-        const logger = logClient
-        .WITH({id: generateNamespace(() => true) ?? ""})
-        .WITH({version: version ?? "", source: source ?? ""})
-
-        logger.INFO("Received request");
-
-        let main: string | null | undefined = "";
-        if (source === "web-ide") {
-            main = JSON.parse(pathToMainFile).join(path.sep);
-        } else if (version != null && typeof version === "string" && source === "vscode") {
-            const [major, minor, patch] = version.split(".").map(v => Number.parseInt(v));
-            if (major >= 0 && minor >= 2 && patch >= 6) {
-                main = JSON.parse(pathToMainFile).join(path.sep);
-            }
-        }
-        if (main === "") {
-            main = pathToMainFile;
-        }
-        if (main == null) {
-            return res.status(400).send("No main file was declared");
-        }
-        const zippedFile = req.file;
-        if (zippedFile == null) {
-            return res.status(400).send("No files were uploaded");
-        }
-        logger.INFO("Uploaded file metadata", {
-            size: zippedFile.size
-        });
-
-        const namespace = createNamespace(main);
-        // Ensure there is only file being sent.
-        if (namespace == null) {
-            logger.WARN("Failed to generate a uuid. May be a sign the uploads directory is too big, or we were" +
-                " severely unlucky");
-            return res.status(400).send({
-                status: "ERROR",
-                message: "Your request could not be served at this time. Please try again later"
-            });
-        }
-
-        const zipFilename = path.join(namespace.directory, zippedFile.originalname)
-        try {
-            await fs.writeFile(zipFilename, zippedFile.buffer);
-        } catch (error) {
-            logger.ERROR("Error writing the zip file to a zip directory", {
-                namespace, error: JSON.stringify(error)
-            });
-            return res.status(500).send({
-                status: "INTERNAL",
-                message: "Failed to save uploaded file"
-            });
-        }
-
-        // Create a directory to extract the source files from the zip into.
-        new AdmZip(zipFilename).extractAllTo(namespace.directory);
-
-        // Run the Harmony model checker.
-        const response = await containerizedHarmonyRun(namespace, logger);
-        cleanup(namespace, logger);
-        return res.status(response.code).send(response);
+        return res.redirect(307, AWS_HTTP_ENDPOINT + "/check");
     });
 
     const PORT = process.env.PORT || 8080;
