@@ -125,6 +125,7 @@ export async function containerizedHarmonyRun(
                     }
                     child_process.exec(dockerCommands.getHTML, (err, stdout, stderr) => {
                         const didSaveHTML = !err && !stderr;
+                        console.log(didSaveHTML);
                         child_process.exec(dockerCommands.clean, (err, stdout, stderr) => {
                             if (err || stderr) {
                                 logger.WARN("Failed to remove Docker container!", {
