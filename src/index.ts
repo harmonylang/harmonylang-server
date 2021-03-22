@@ -12,7 +12,7 @@ import multer from 'multer';
 import {logClient} from "./logger/logs";
 import rimraf from "rimraf";
 import cors from 'cors';
-import {cleanup, containerizedHarmonyRun, createNamespace} from "./docker/containerIzedRun";
+import {cleanup, containerizedHarmonyRun, createNamespace} from "./docker/containerizedRun";
 
 
 async function buildApp() {
