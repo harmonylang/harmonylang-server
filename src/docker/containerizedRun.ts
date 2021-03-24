@@ -179,7 +179,10 @@ export async function containerizedHarmonyRun(
         if (didSaveHTML) {
             responseBody.staticHtmlLocation = `/html_results/${namespace.id}.html`;
             responseBody.duration = HTML_DURATION;
-            setTimeout(() => fs.removeSync(namespace.htmlFile), HTML_DURATION);
+            const removeHtmlTimeout = setTimeout(() => {
+                fs.removeSync(namespace.htmlFile);
+                clearTimeout(removeHtmlTimeout);
+            }, HTML_DURATION);
         }
         return responseBody;
     } else {
