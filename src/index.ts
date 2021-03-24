@@ -51,13 +51,17 @@ async function buildApp() {
         logger.INFO("Received request");
 
         let main: string | null | undefined = "";
-        if (source === "web-ide") {
-            main = JSON.parse(pathToMainFile).join(path.sep);
-        } else if (version != null && typeof version === "string" && source === "vscode") {
-            const [major, minor, patch] = version.split(".").map(v => Number.parseInt(v));
-            if (major >= 0 && minor >= 2 && patch >= 6) {
+        try {
+            if (source === "web-ide") {
                 main = JSON.parse(pathToMainFile).join(path.sep);
+            } else if (version != null && typeof version === "string" && source === "vscode") {
+                const [major, minor, patch] = version.split(".").map(v => Number.parseInt(v));
+                if (major >= 0 && minor >= 2 && patch >= 6) {
+                    main = JSON.parse(pathToMainFile).join(path.sep);
+                }
             }
+        } catch {
+            main = "";
         }
         if (main === "") {
             main = pathToMainFile;
