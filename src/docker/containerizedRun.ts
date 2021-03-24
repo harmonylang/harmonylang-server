@@ -14,7 +14,7 @@ type RunResponse = {
     duration?: number;
 } | {
     status: "SUCCESS" | "ERROR" | "INTERNAL";
-    code: 400 | 500 | 404;
+    code: 400 | 500 | 404 | 200;
     message: string;
 }
 
@@ -105,7 +105,7 @@ export async function containerizedHarmonyRun(
     logger: HarmonyLogger
 ): Promise<RunResponse> {
     if (!fs.existsSync(namespace.mainFile) || !fs.statSync(namespace.mainFile).isFile()) {
-        const code = 404;
+        const code = 200;
         logger.ERROR("Filename does not exist", {
             mainFile: namespace.mainFile, code, namespace: namespace.id,
         });
@@ -125,7 +125,7 @@ export async function containerizedHarmonyRun(
         });
         await executeCommand(dockerCommands.clean, {timeout: 20000});
         return {
-            code: 400,
+            code: 200,
             status: "ERROR",
             message: runResult.error.message.startsWith("Command failed") ?
                 "Failed to execute Harmony file" : "Unknown error encountered",
@@ -137,7 +137,7 @@ export async function containerizedHarmonyRun(
         console.log(getJsonResult);
         await executeCommand(dockerCommands.clean, {timeout: 20000});
         return {
-            code: 500,
+            code: 200,
             status: "INTERNAL",
             message: "Failed to create Harmony model"
         };
@@ -159,12 +159,12 @@ export async function containerizedHarmonyRun(
         logger.ERROR("Error encountered while parsing Harmony results", {
             error: JSON.stringify(error) ?? "",
             namespace: namespace.id,
-            responseCode: 500,
+            responseCode: 200,
             stdout: runResult.stdout ?? "[none]",
             stderr: runResult.error ?? "[none]",
         })
         return {
-            code: 500,
+            code: 200,
             status: "INTERNAL",
             message: "Failed to parse Harmony results",
         };
@@ -183,6 +183,6 @@ export async function containerizedHarmonyRun(
         }
         return responseBody;
     } else {
-        return {code: 400, status: 'ERROR', message: runResult.stdout};
+        return {code: 200, status: 'ERROR', message: runResult.stdout};
     }
 }

@@ -63,11 +63,17 @@ async function buildApp() {
             main = pathToMainFile;
         }
         if (main == null) {
-            return res.status(400).send("No main file was declared");
+            return res.status(200).send({
+                status: "ERROR",
+                message: "No main file was declared"
+            });
         }
         const zippedFile = req.file;
         if (zippedFile == null) {
-            return res.status(400).send("No files were uploaded");
+            return res.status(200).send({
+                status: "ERROR",
+                message: "No files were uploaded"
+            });
         }
         logger.INFO("Uploaded file metadata", {
             size: zippedFile.size
@@ -78,7 +84,10 @@ async function buildApp() {
         if (namespace == null) {
             logger.WARN("Failed to generate a uuid. May be a sign the uploads directory is too big, or we were" +
                 " severely unlucky");
-            return res.status(400).send("Your request could not be served at this time. Please try again later");
+            return res.status(200).send({
+                status: "ERROR",
+                message: "Your request could not be served at this time. Please try again later"
+            });
         }
 
         const zipFilename = path.join(namespace.directory, zippedFile.originalname)
@@ -88,7 +97,10 @@ async function buildApp() {
             logger.ERROR("Error writing the zip file to a zip directory", {
                 namespace, error: JSON.stringify(error)
             });
-            return res.status(200).send("Failed to save uploaded file on the server");
+            return res.status(200).send({
+                status: "ERROR",
+                message: "Failed to save uploaded file on the server"
+            });
         }
 
         // Create a directory to extract the source files from the zip into.
