@@ -13,7 +13,7 @@ type RunResponse = {
     staticHtmlLocation?: string;
     duration?: number;
 } | {
-    status: "SUCCESS" | "ERROR" | "INTERNAL";
+    status: "SUCCESS" | "ERROR" | "INTERNAL" | "COMPLETED";
     code: 400 | 500 | 404 | 200;
     message: string;
 }
@@ -186,6 +186,6 @@ export async function containerizedHarmonyRun(
         }
         return responseBody;
     } else {
-        return {code: 200, status: 'ERROR', message: runResult.stdout};
+        return {code: 200, status: 'COMPLETED', message: runResult.stdout};
     }
 }
