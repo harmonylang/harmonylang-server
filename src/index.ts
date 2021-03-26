@@ -12,6 +12,7 @@ import multer from 'multer';
 import {logClient} from "./logger/logs";
 import rimraf from "rimraf";
 import cors from 'cors';
+import https from 'https';
 import {cleanup, containerizedHarmonyRun, createNamespace} from "./docker/containerizedRun";
 
 
@@ -120,11 +121,30 @@ async function buildApp() {
         }
     });
 
-    const PORT = process.env.PORT || 8080;
-    app.listen(PORT, () => {
-        console.log(`Server is listening on port ${PORT}`);
-        console.log(`Running as process ${process.pid}`);
-    });
+    return app;
 }
 
-buildApp().catch(e => console.log(e));
+buildApp()
+    .then(app => {
+        const PORT = process.env.PORT || 8080;
+        const pathToKey = process.env.PATH_TO_HTTPS_KEY;
+        const pathToChain = process.env.PATH_TO_HTTPS_CHAIN;
+        const pathToCertificate = process.env.PATH_TO_HTTPS_CERTIFICATE;
+        if (pathToKey && pathToChain && pathToCertificate) {
+            console.log("Attempting to listen with SSL")
+            https.createServer({
+                key: fsSync.readFileSync(pathToKey),
+                cert: fsSync.readFileSync(pathToCertificate),
+                ca: fsSync.readFileSync(pathToChain)
+            }, app).listen(PORT, () => {
+                console.log(`Server is listening on port ${PORT} with SSL`);
+                console.log(`Running as process ${process.pid}`);
+            });
+        } else {
+            app.listen(PORT, () => {
+                console.log(`Server is listening on port ${PORT} without SSL`);
+                console.log(`Running as process ${process.pid}`);
+            })
+        }
+    })
+    .catch(e => console.log(e));
