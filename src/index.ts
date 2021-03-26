@@ -126,7 +126,8 @@ async function buildApp() {
 
 buildApp()
     .then(app => {
-        const PORT = process.env.PORT || 8080;
+        const HTTPS_PORT = process.env.HTTPS_PORT || 8080;
+        const HTTP_PORT = process.env.HTTP_PORT || 8080;
         const pathToKey = process.env.PATH_TO_HTTPS_KEY;
         const pathToChain = process.env.PATH_TO_HTTPS_CHAIN;
         const pathToCertificate = process.env.PATH_TO_HTTPS_CERTIFICATE;
@@ -136,13 +137,13 @@ buildApp()
                 key: fsSync.readFileSync(pathToKey),
                 cert: fsSync.readFileSync(pathToCertificate),
                 ca: fsSync.readFileSync(pathToChain)
-            }, app).listen(PORT, () => {
-                console.log(`Server is listening on port ${PORT} with SSL`);
+            }, app).listen(HTTPS_PORT, () => {
+                console.log(`Server is listening on port ${HTTPS_PORT} with SSL`);
                 console.log(`Running as process ${process.pid}`);
             });
         } else {
-            app.listen(PORT, () => {
-                console.log(`Server is listening on port ${PORT} without SSL`);
+            app.listen(HTTP_PORT, () => {
+                console.log(`Server is listening on port ${HTTP_PORT} without SSL`);
                 console.log(`Running as process ${process.pid}`);
             })
         }
