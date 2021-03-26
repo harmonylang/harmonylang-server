@@ -105,7 +105,14 @@ async function buildApp() {
         }
 
         // Create a directory to extract the source files from the zip into.
-        new AdmZip(zipFilename).extractAllTo(namespace.directory);
+        try {
+            new AdmZip(zipFilename).extractAllTo(namespace.directory);
+        } catch {
+            return res.status(200).send({
+                status: "ERROR",
+                message: "Failed to extract files from the submitted source zip"
+            });
+        }
 
         // Run the Harmony model checker.
         const response = await containerizedHarmonyRun(namespace, logger);
