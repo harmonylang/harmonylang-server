@@ -36,10 +36,6 @@ async function buildApp() {
     app.use(express.static('public'));
 
     app.get('/', async (req, res) => {
-        res.sendStatus(200);
-    });
-
-    app.get('/home', (_, res) => {
         return res.redirect("https://harmony.cs.cornell.edu/");
     });
 
