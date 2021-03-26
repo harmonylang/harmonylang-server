@@ -12,6 +12,7 @@ import multer from 'multer';
 import {logClient} from "./logger/logs";
 import rimraf from "rimraf";
 import cors from 'cors';
+import https from 'https';
 import {cleanup, containerizedHarmonyRun, createNamespace} from "./docker/containerizedRun";
 
 
@@ -51,23 +52,33 @@ async function buildApp() {
         logger.INFO("Received request");
 
         let main: string | null | undefined = "";
-        if (source === "web-ide") {
-            main = JSON.parse(pathToMainFile).join(path.sep);
-        } else if (version != null && typeof version === "string" && source === "vscode") {
-            const [major, minor, patch] = version.split(".").map(v => Number.parseInt(v));
-            if (major >= 0 && minor >= 2 && patch >= 6) {
+        try {
+            if (source === "web-ide") {
                 main = JSON.parse(pathToMainFile).join(path.sep);
+            } else if (version != null && typeof version === "string" && source === "vscode") {
+                const [major, minor, patch] = version.split(".").map(v => Number.parseInt(v));
+                if (major >= 0 && minor >= 2 && patch >= 6) {
+                    main = JSON.parse(pathToMainFile).join(path.sep);
+                }
             }
+        } catch {
+            main = "";
         }
         if (main === "") {
             main = pathToMainFile;
         }
         if (main == null) {
-            return res.status(400).send("No main file was declared");
+            return res.status(200).send({
+                status: "ERROR",
+                message: "No main file was declared"
+            });
         }
         const zippedFile = req.file;
         if (zippedFile == null) {
-            return res.status(400).send("No files were uploaded");
+            return res.status(200).send({
+                status: "ERROR",
+                message: "No files were uploaded"
+            });
         }
         logger.INFO("Uploaded file metadata", {
             size: zippedFile.size
@@ -78,7 +89,10 @@ async function buildApp() {
         if (namespace == null) {
             logger.WARN("Failed to generate a uuid. May be a sign the uploads directory is too big, or we were" +
                 " severely unlucky");
-            return res.status(400).send("Your request could not be served at this time. Please try again later");
+            return res.status(200).send({
+                status: "ERROR",
+                message: "Your request could not be served at this time. Please try again later"
+            });
         }
 
         const zipFilename = path.join(namespace.directory, zippedFile.originalname)
@@ -88,7 +102,10 @@ async function buildApp() {
             logger.ERROR("Error writing the zip file to a zip directory", {
                 namespace, error: JSON.stringify(error)
             });
-            return res.status(200).send("Failed to save uploaded file on the server");
+            return res.status(200).send({
+                status: "ERROR",
+                message: "Failed to save uploaded file on the server"
+            });
         }
 
         // Create a directory to extract the source files from the zip into.
@@ -104,10 +121,31 @@ async function buildApp() {
         }
     });
 
-    const PORT = process.env.PORT || 8080;
-    app.listen(PORT, () => {
-        console.log(`Server is listening on port ${PORT}`);
-    });
+    return app;
 }
 
-buildApp().catch(e => console.log(e));
+buildApp()
+    .then(app => {
+        const HTTPS_PORT = process.env.HTTPS_PORT || 8080;
+        const HTTP_PORT = process.env.HTTP_PORT || 8080;
+        const pathToKey = process.env.PATH_TO_HTTPS_KEY;
+        const pathToChain = process.env.PATH_TO_HTTPS_CHAIN;
+        const pathToCertificate = process.env.PATH_TO_HTTPS_CERTIFICATE;
+        if (pathToKey && pathToChain && pathToCertificate) {
+            console.log("Attempting to listen with SSL")
+            https.createServer({
+                key: fsSync.readFileSync(pathToKey),
+                cert: fsSync.readFileSync(pathToCertificate),
+                ca: fsSync.readFileSync(pathToChain)
+            }, app).listen(HTTPS_PORT, () => {
+                console.log(`Server is listening on port ${HTTPS_PORT} with SSL`);
+                console.log(`Running as process ${process.pid}`);
+            });
+        } else {
+            app.listen(HTTP_PORT, () => {
+                console.log(`Server is listening on port ${HTTP_PORT} without SSL`);
+                console.log(`Running as process ${process.pid}`);
+            })
+        }
+    })
+    .catch(e => console.log(e));
