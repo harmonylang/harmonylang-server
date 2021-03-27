@@ -7,7 +7,7 @@ type Event = () => Promise<void>;
  * This works because Node runs a single thread at a time in the event loop.
  * @param maxInParallel
  */
-export function BuilderQueueRunner(maxInParallel: number) {
+export function BuildQueueRunner(maxInParallel: number) {
     let runningProcesses = 0;
     const maximum = Math.max(maxInParallel, 1);
     const queue: Event[] = [];

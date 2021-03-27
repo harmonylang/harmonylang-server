@@ -65,7 +65,7 @@ function makeDockerCommands(
 ): DockerCommands {
     const harmonyFileArg = path.join("..", "code", namespace.mainFilename);
     return {
-        run: `docker run -m 100M --memory-swap 100M --name ${namespace.id} -v ${namespace.directory}:/code -w /harmony -t anthonyyang/harmony-docker ./wrapper.sh ${harmonyFileArg}`,
+        run: `docker run -m 250M --memory-swap 250M --name ${namespace.id} -v ${namespace.directory}:/code -w /harmony -t anthonyyang/harmony-docker ./wrapper.sh ${harmonyFileArg}`,
         getJSON: `docker cp ${namespace.id}:/harmony/charm.json ${namespace.charmJSON}`,
         getHTML: `docker cp ${namespace.id}:/harmony/harmony.html ${namespace.htmlFile}`,
         clean: `docker container rm ${namespace.id}`

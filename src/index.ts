@@ -14,6 +14,7 @@ import rimraf from "rimraf";
 import cors from 'cors';
 import https from 'https';
 import {cleanup, containerizedHarmonyRun, createNamespace} from "./docker/containerizedRun";
+import {BuildQueueRunner} from "./docker/queueRunner";
 
 
 async function buildApp() {
@@ -38,6 +39,8 @@ async function buildApp() {
     app.get('/', async (req, res) => {
         return res.redirect("https://harmony.cs.cornell.edu/");
     });
+
+    const queueRunner = BuildQueueRunner(7);
 
     app.post("/check", upload.single("file"), async (req, res) => {
         const {main: pathToMainFile, version, source} = req.body;
@@ -114,14 +117,16 @@ async function buildApp() {
             });
         }
 
-        // Run the Harmony model checker.
-        const response = await containerizedHarmonyRun(namespace, logger);
-        cleanup(namespace, logger);
-        if (response.code === 200) {
-            return res.status(response.code).send(response);
-        } else {
-            return res.status(response.code).send(response.message);
-        }
+        queueRunner.register(async () => {
+            // Run the Harmony model checker.
+            const response = await containerizedHarmonyRun(namespace, logger);
+            cleanup(namespace, logger);
+            if (response.code === 200) {
+                res.status(response.code).send(response);
+            } else {
+                res.status(response.code).send(response.message);
+            }
+        });
     });
 
     return app;
