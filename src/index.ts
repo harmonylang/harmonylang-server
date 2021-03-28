@@ -44,6 +44,10 @@ async function buildApp() {
         return res.redirect(AWS_HTTP_ENDPOINT + "/");
     });
 
+    app.get('/download/:id', (req, res) => {
+        return res.redirect(AWS_HTTP_ENDPOINT + "/download/" + req.params.id);
+    })
+
     app.post("/check", upload.single("file"), async (req, res) => {
         return res.redirect(308, AWS_HTTP_ENDPOINT + "/check");
     });
