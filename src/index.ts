@@ -13,6 +13,8 @@ import cors from 'cors';
 import https from 'https';
 import {BuildJobQueueRunner} from "./util/jobQueueRunner";
 import {makeCheckHandler} from "./routes/check";
+import path from "path";
+import * as fs from "fs";
 
 
 async function buildApp() {
@@ -23,12 +25,6 @@ async function buildApp() {
     app.use(bodyParser.urlencoded({extended: true}));
     app.use(cors());
     app.set('trust proxy', 1);
-
-    const limiter = rateLimit({
-        windowMs: 15 * 60 * 1000, // 15 minutes
-        max: 100 // limit each IP to 100 requests per windowMs
-    });
-    app.use(limiter);
 
     try {
         rimraf.sync(PUBLIC_DIR);
@@ -41,6 +37,21 @@ async function buildApp() {
 
     app.get('/', async (req, res) => {
         return res.redirect("https://harmony.cs.cornell.edu/");
+    });
+    app.get('/download/:id', rateLimit({
+        windowMs: 20 * 60 * 1000,
+        max: 100,
+    }), async (req, res) => {
+        if (req.params.id) {
+            return res.sendStatus(400);
+        }
+        const target = path.join(HTML_RESULTS_DIR, req.params.id);
+        if (!fs.existsSync(target)) {
+            return res.status(404).send("Not found: You can generate a new copy by running the program.");
+        }
+        res.download(target, err => {
+            console.log(err);
+        });
     });
 
     const queueRunner = BuildJobQueueRunner(3);

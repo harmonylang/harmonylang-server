@@ -2,11 +2,12 @@ import express from "express";
 import {HarmonyLogger} from "../logger/logs";
 import generateNamespace from "../util/genNamespace";
 import path from "path";
-import {cleanup, containerizedHarmonyRun, createNamespace} from "./docker/containerizedRun";
+import {cleanup, containerizedHarmonyRun, createNamespace} from "./codeRunner/containerizedRun";
 import {promises as fs} from "fs";
 import AdmZip from "adm-zip";
 import {JobQueueRunner} from "../util/jobQueueRunner";
 import multer from "multer";
+import rateLimit from "express-rate-limit";
 
 
 type CheckRequest = {
@@ -75,6 +76,10 @@ export function makeCheckHandler(
     baseLogger: HarmonyLogger
 ) {
     return [
+        rateLimit({
+            windowMs: 15 * 60 * 1000, // 15 minutes
+            max: 100 // limit each IP to 100 requests per windowMs
+        }),
         upload.single("file"),
         async function(req: express.Request, res: express.Response) {
             let parsedRequest: CheckRequest;

@@ -176,7 +176,7 @@ export async function containerizedHarmonyRun(
     ) {
         const responseBody: RunResponse = {status: "FAILURE", jsonData: results, code: 200};
         if (didSaveHTML) {
-            responseBody.staticHtmlLocation = `/html_results/${namespace.id}.html`;
+            responseBody.staticHtmlLocation = `/download/${namespace.id}`;
             responseBody.duration = HTML_DURATION;
             const removeHtmlTimeout = setTimeout(() => {
                 fs.removeSync(namespace.htmlFile);
