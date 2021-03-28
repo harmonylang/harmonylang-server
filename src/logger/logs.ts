@@ -14,6 +14,8 @@ const credentials = {
     auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
 };
 
+const SUPPRESS_LOGS = process.env.SUPPRESS_LOGS && process.env.SUPPRESS_LOGS.toLowerCase() === "true"
+
 // Initialize Firebase
 let firestoreLogs: FirebaseFirestore.CollectionReference<FirebaseFirestore.DocumentData> | null = null;
 try {
@@ -46,7 +48,7 @@ export type HarmonyLogger = {
     WITH(kv: Record<string, unknown>): HarmonyLogger
 }
 
-export function makeLogger(kv?: Record<string, unknown>): HarmonyLogger {
+function makeLogger(kv?: Record<string, unknown>): HarmonyLogger {
     const keyValues = Object.assign({}, kv);
     return {
         INFO(message: string, kv?: Record<string, unknown>) {
@@ -60,7 +62,7 @@ export function makeLogger(kv?: Record<string, unknown>): HarmonyLogger {
             };
             if (firestoreLogs) {
                 firestoreLogs.add(logBody).catch(e => console.log(e));
-            } else {
+            } else if (!SUPPRESS_LOGS) {
                 console.log(logBody);
             }
         },
@@ -75,7 +77,7 @@ export function makeLogger(kv?: Record<string, unknown>): HarmonyLogger {
             };
             if (firestoreLogs) {
                 firestoreLogs.add(logBody).catch(e => console.log(e));
-            } else {
+            } else if (!SUPPRESS_LOGS) {
                 console.log(logBody);
             }
         },
@@ -90,7 +92,7 @@ export function makeLogger(kv?: Record<string, unknown>): HarmonyLogger {
             };
             if (firestoreLogs) {
                 firestoreLogs.add(logBody).catch(e => console.log(e));
-            } else {
+            } else if (!SUPPRESS_LOGS) {
                 console.log(logBody);
             }
         },

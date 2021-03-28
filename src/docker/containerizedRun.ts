@@ -65,10 +65,10 @@ function makeDockerCommands(
 ): DockerCommands {
     const harmonyFileArg = path.join("..", "code", namespace.mainFilename);
     return {
-        run: `docker run -m 250M --memory-swap 250M --name ${namespace.id} -v ${namespace.directory}:/code -w /harmony -t anthonyyang/harmony-docker ./wrapper.sh ${harmonyFileArg}`,
+        run: `docker run -m 300M --memory-swap 300M --name ${namespace.id} -v ${namespace.directory}:/code -w /harmony -t anthonyyang/harmony-docker ./wrapper.sh ${harmonyFileArg}`,
         getJSON: `docker cp ${namespace.id}:/harmony/charm.json ${namespace.charmJSON}`,
         getHTML: `docker cp ${namespace.id}:/harmony/harmony.html ${namespace.htmlFile}`,
-        clean: `docker container rm ${namespace.id}`
+        clean: `docker container rm --force ${namespace.id}`
     }
 }
 
@@ -87,9 +87,9 @@ type ExecResult = {
     stderr: string;
 }
 
-async function executeCommand(cmd: string, options: child_process.ExecOptions): Promise<ExecResult> {
+async function executeCommand(cmd: string, options?: child_process.ExecOptions): Promise<ExecResult> {
     return new Promise<ExecResult>(resolve => {
-        child_process.exec(cmd, options, (error, stdout, stderr) => {
+        child_process.exec(cmd, options || {}, (error, stdout, stderr) => {
             resolve({
                 error: error,
                 stdout: stdout,
@@ -116,14 +116,17 @@ export async function containerizedHarmonyRun(
         };
     }
     const dockerCommands = makeDockerCommands(namespace);
-    const runResult = await executeCommand(dockerCommands.run, {timeout: 20000});
+    const runResult = await executeCommand(
+        dockerCommands.run, {timeout: 40000}
+    );
     if (runResult.error) {
         logger.INFO("Process led to error", {
             error: JSON.stringify(runResult.error),
             stdout: runResult.stdout,
             stderr: runResult.stderr,
         });
-        await executeCommand(dockerCommands.clean, {timeout: 20000});
+        const cleanResult = await executeCommand(dockerCommands.clean, {timeout: 20000});
+        console.log({runResult, cleanResult});
         return {
             code: 200,
             status: "ERROR",
@@ -134,7 +137,6 @@ export async function containerizedHarmonyRun(
 
     const getJsonResult = await executeCommand(dockerCommands.getJSON, {timeout: 10000});
     if (getJsonResult.error || getJsonResult.stderr) {
-        console.log(getJsonResult);
         await executeCommand(dockerCommands.clean, {timeout: 20000});
         return {
             code: 200,
@@ -145,9 +147,6 @@ export async function containerizedHarmonyRun(
 
     const getHtmlResult = await executeCommand(dockerCommands.getHTML, {timeout: 10000});
     const didSaveHTML = !getHtmlResult.error && !getHtmlResult.stderr;
-    if (!didSaveHTML) {
-        console.log(getHtmlResult);
-    }
     await executeCommand(dockerCommands.clean, {timeout: 20000});
     let results: any;
     try {

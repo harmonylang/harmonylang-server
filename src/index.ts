@@ -39,8 +39,7 @@ async function buildApp() {
     app.get('/', async (req, res) => {
         return res.redirect("https://harmony.cs.cornell.edu/");
     });
-
-    const queueRunner = BuildQueueRunner(7);
+    const queueRunner = BuildQueueRunner(3);
 
     app.post("/check", upload.single("file"), async (req, res) => {
         const {main: pathToMainFile, version, source} = req.body;
