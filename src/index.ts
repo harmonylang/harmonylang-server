@@ -13,6 +13,7 @@ import cors from 'cors';
 import https from 'https';
 import {BuildJobQueueRunner} from "./util/jobQueueRunner";
 import {makeCheckHandler} from "./routes/check";
+import isUUID from "uuid-validate";
 import path from "path";
 import * as fs from "fs";
 
@@ -42,15 +43,19 @@ async function buildApp() {
         windowMs: 20 * 60 * 1000,
         max: 100,
     }), async (req, res) => {
-        if (req.params.id) {
+        const id = req.params.id;
+        if (id == null) {
             return res.sendStatus(400);
         }
-        const target = path.join(HTML_RESULTS_DIR, req.params.id);
+        if (!isUUID(id, 4)) {
+            return res.sendStatus(400);
+        }
+        const target = path.join(HTML_RESULTS_DIR, id + ".html");
         if (!fs.existsSync(target)) {
             return res.status(404).send("Not found: You can generate a new copy by running the program.");
         }
         res.download(target, err => {
-            console.log(err);
+            if (err) console.log(err);
         });
     });
 
