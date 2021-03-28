@@ -125,13 +125,12 @@ export async function containerizedHarmonyRun(
             stdout: runResult.stdout,
             stderr: runResult.stderr,
         });
-        const cleanResult = await executeCommand(dockerCommands.clean, {timeout: 20000});
-        console.log({runResult, cleanResult});
+        await executeCommand(dockerCommands.clean, {timeout: 20000});
         return {
             code: 200,
             status: "ERROR",
             message: runResult.error.message.startsWith("Command failed") ?
-                "Failed to execute Harmony file" : "Unknown error encountered",
+                runResult.stdout : "Unknown error encountered",
         };
     }
 
