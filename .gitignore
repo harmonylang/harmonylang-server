@@ -121,3 +121,5 @@ harmony-prepare/
 uploads/
 resource/**/*.json
 public/
+
+ecosystem.config.js
