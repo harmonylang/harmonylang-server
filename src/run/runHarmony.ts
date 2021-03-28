@@ -104,7 +104,7 @@ export function runHarmony(
             }
         } else {
             try {
-                let data = fs.readFileSync(path.join(copiedHarmonyDirectory, "charm.exe.json"), {encoding: 'utf-8'});
+                let data = fs.readFileSync(path.join(copiedHarmonyDirectory, "charm.json"), {encoding: 'utf-8'});
                 const results = JSON.parse(data);
                 if (results != null && results.issue != null && results.issue != "No issues") {
                     const responseBody: Record<string, unknown> = {status: "FAILURE", jsonData: results};
