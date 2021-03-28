@@ -1,6 +1,6 @@
 import {describe, it} from 'mocha';
 import {expect} from "chai";
-import {BuilderQueueRunner} from "../../src/docker/queueRunner";
+import {BuilderQueueRunner} from "../../src/routes/docker/queueRunner";
 
 
 describe('Queue Runner test suite', function () {

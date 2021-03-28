@@ -1,5 +1,5 @@
-import {HarmonyLogger} from "../logger/logs";
-import {HTML_RESULTS_DIR, UPLOADS_DIR} from "../config";
+import {HarmonyLogger} from "../../logger/logs";
+import {HTML_RESULTS_DIR, UPLOADS_DIR} from "../../config";
 import path from "path";
 import * as uuid from "uuid";
 import fs from "fs-extra";
