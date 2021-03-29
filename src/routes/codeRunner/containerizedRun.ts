@@ -6,6 +6,7 @@ import fs from "fs-extra";
 import rimraf from "rimraf";
 import {executeCommand} from "../../cmd";
 import {objectifyError} from "../../util/isError";
+import io from "@pm2/io";
 
 type RunResponse = {
     jsonData: Record<string, unknown>;
@@ -73,6 +74,10 @@ function makeDockerCommands(
     }
 }
 
+const numberOfHtmlFilesCounter = io.counter({
+    name: "Number of HTML Files",
+    id: "app.data.html.count"
+});
 
 export function cleanup(namespace: CodeRunnerNamespace): Promise<void> {
     return new Promise<void>((resolve, reject) => {
@@ -157,6 +162,9 @@ export async function containerizedHarmonyRun(
             runStderr: runResult.error ?? "[none]",
             ...errorBody,
         })
+
+        if (didSaveHTML) fs.remove(namespace.htmlFile).catch(console.log);
+
         return {
             code: 200,
             status: "INTERNAL",
@@ -173,8 +181,10 @@ export async function containerizedHarmonyRun(
         if (didSaveHTML) {
             responseBody.staticHtmlLocation = `/download/${namespace.id}`;
             responseBody.duration = HTML_DURATION;
+            numberOfHtmlFilesCounter.inc();
             const removeHtmlTimeout = setTimeout(() => {
                 fs.remove(namespace.htmlFile).catch(console.log);
+                numberOfHtmlFilesCounter.dec();
                 clearTimeout(removeHtmlTimeout);
             }, HTML_DURATION);
         }
