@@ -1,10 +1,11 @@
-import {HarmonyLogger} from "../../logger/logs";
+import {HarmonyLogger} from "../../analytics/logger";
 import {HTML_RESULTS_DIR, UPLOADS_DIR} from "../../config";
 import path from "path";
 import * as uuid from "uuid";
 import fs from "fs-extra";
 import rimraf from "rimraf";
-import child_process from "child_process";
+import {executeCommand} from "../../cmd";
+import {objectifyError} from "../../util/isError";
 
 type RunResponse = {
     jsonData: Record<string, unknown>;
@@ -73,55 +74,38 @@ function makeDockerCommands(
 }
 
 
-export function cleanup(namespace: CodeRunnerNamespace, logger: HarmonyLogger) {
-    rimraf(namespace.directory, error => {
-        if (error) {
-            logger.WARN("Warning: failed to cleanup namespace", {namespace: namespace.id});
-        }
-    });
-}
-
-type ExecResult = {
-    error: child_process.ExecException | null;
-    stdout: string;
-    stderr: string;
-}
-
-async function executeCommand(cmd: string, options?: child_process.ExecOptions): Promise<ExecResult> {
-    return new Promise<ExecResult>(resolve => {
-        child_process.exec(cmd, options || {}, (error, stdout, stderr) => {
-            resolve({
-                error: error,
-                stdout: stdout,
-                stderr: stderr,
-            });
+export function cleanup(namespace: CodeRunnerNamespace): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+        rimraf(namespace.directory, error => {
+            if (error) reject(error);
         });
     });
 }
-
 
 export async function containerizedHarmonyRun(
     namespace: CodeRunnerNamespace,
     logger: HarmonyLogger
 ): Promise<RunResponse> {
     if (!fs.existsSync(namespace.mainFile) || !fs.statSync(namespace.mainFile).isFile()) {
-        const code = 200;
-        logger.ERROR("Filename does not exist", {
-            mainFile: namespace.mainFile, code, namespace: namespace.id,
-        });
+        logger.ERROR("Filename does not exist");
         return {
             status: "INTERNAL",
             message: "Filename could not be found on the server",
-            code
+            code: 200,
         };
     }
     const dockerCommands = makeDockerCommands(namespace);
-    const runResult = await executeCommand(
-        dockerCommands.run, {timeout: 40000}
-    );
+    const runResult = await executeCommand(dockerCommands.run, {timeout: 40000});
     if (runResult.error) {
+        const e = runResult.error
         logger.INFO("Process led to error", {
-            error: JSON.stringify(runResult.error),
+            errorCode: e.code ?? 0,
+            command: e.cmd ?? "",
+            killed: e.killed ?? false,
+            signal: e.signal ?? "",
+            errorName: e.name,
+            stack: e.stack ?? "",
+            errorMessage: e.message,
             stdout: runResult.stdout,
             stderr: runResult.stderr,
         });
@@ -129,7 +113,7 @@ export async function containerizedHarmonyRun(
         return {
             code: 200,
             status: "ERROR",
-            message: runResult.error.message.startsWith("Command failed") ?
+            message: e.message.startsWith("Command failed") ?
                 runResult.stdout : "Unknown error encountered",
         };
     }
@@ -137,6 +121,20 @@ export async function containerizedHarmonyRun(
     const getJsonResult = await executeCommand(dockerCommands.getJSON, {timeout: 10000});
     if (getJsonResult.error || getJsonResult.stderr) {
         await executeCommand(dockerCommands.clean, {timeout: 20000});
+        const e = getJsonResult.error;
+        logger.ERROR("Failed to create Harmony model", {
+            errorCode: e?.code ?? 0,
+            command: e?.cmd ?? "",
+            killed: e?.killed ?? false,
+            signal: e?.signal ?? "",
+            errorName: e?.name ?? "",
+            stack: e?.stack ?? "",
+            errorMessage: e?.message ?? "",
+            getJsonStdout: getJsonResult.stdout,
+            getJsonStderr: getJsonResult.stderr,
+            runStdout: runResult.stdout,
+            runStderr: runResult.stderr,
+        });
         return {
             code: 200,
             status: "INTERNAL",
@@ -152,14 +150,12 @@ export async function containerizedHarmonyRun(
         const data = fs.readFileSync(namespace.charmJSON, {encoding: 'utf-8'});
         results = JSON.parse(data);
     } catch (error) {
-        console.log(error);
-        console.log(runResult);
+        const errorBody = objectifyError(error);
         logger.ERROR("Error encountered while parsing Harmony results", {
-            error: JSON.stringify(error) ?? "",
             namespace: namespace.id,
-            responseCode: 200,
-            stdout: runResult.stdout ?? "[none]",
-            stderr: runResult.error ?? "[none]",
+            runStdout: runResult.stdout ?? "[none]",
+            runStderr: runResult.error ?? "[none]",
+            ...errorBody,
         })
         return {
             code: 200,
@@ -178,7 +174,7 @@ export async function containerizedHarmonyRun(
             responseBody.staticHtmlLocation = `/download/${namespace.id}`;
             responseBody.duration = HTML_DURATION;
             const removeHtmlTimeout = setTimeout(() => {
-                fs.removeSync(namespace.htmlFile);
+                fs.remove(namespace.htmlFile).catch(console.log);
                 clearTimeout(removeHtmlTimeout);
             }, HTML_DURATION);
         }

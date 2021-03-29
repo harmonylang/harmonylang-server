@@ -7,7 +7,7 @@ import bodyParser from 'body-parser';
 import fsSync from "fs";
 import {HTML_RESULTS_DIR, PUBLIC_DIR} from "./config";
 import multer from 'multer';
-import {logClient} from "./logger/logs";
+import {logClient} from "./analytics/logger";
 import rimraf from "rimraf";
 import cors from 'cors';
 import https from 'https';
@@ -15,7 +15,7 @@ import {BuildJobQueueRunner} from "./util/jobQueueRunner";
 import {makeCheckHandler} from "./routes/check";
 import isUUID from "uuid-validate";
 import path from "path";
-import * as fs from "fs";
+import fs from "fs";
 
 
 async function buildApp() {

@@ -1,6 +1,5 @@
 import express from "express";
-import {HarmonyLogger} from "../logger/logs";
-import generateNamespace from "../util/genNamespace";
+import {HarmonyLogger} from "../analytics/logger";
 import path from "path";
 import {cleanup, containerizedHarmonyRun, createNamespace} from "./codeRunner/containerizedRun";
 import {promises as fs} from "fs";
@@ -8,6 +7,7 @@ import AdmZip from "adm-zip";
 import {JobQueueRunner} from "../util/jobQueueRunner";
 import multer from "multer";
 import rateLimit from "express-rate-limit";
+import {objectifyError} from "../util/isError";
 
 
 type CheckRequest = {
@@ -86,42 +86,46 @@ export function makeCheckHandler(
             try {
                 parsedRequest = parseRequestBody(req);
             } catch (e: unknown) {
-                if (e instanceof Error) {
-                    return res.status(200).send({
-                        status: "ERROR",
-                        message: e.message
-                    });
-                }
+                const errorBody = objectifyError(e);
+                baseLogger.ERROR("Cannot parse request body", errorBody);
                 return res.status(200).send({
                     status: "INTERNAL",
                     message: "Internal error occurred. Please contact developers"
                 });
             }
             const {version, source, zipFile, mainFile} = parsedRequest;
-            const logger = baseLogger.WITH({
-                id: generateNamespace(() => true) ?? "",
-                server: "aws",
-                version,
-                source,
-                size: zipFile.size
-            });
-            logger.INFO("Received request");
+
             const namespace = createNamespace(mainFile);
-            // Ensure there is only file being sent.
             if (namespace == null) {
-                logger.WARN("Failed to generate a uuid. May be a sign that the uploads directory is too big, or we" +
-                    " were severely unlucky");
+                baseLogger.ERROR("Failed to generate namespace. May be a sign that the uploads directory is too" +
+                    " big, or we were severely unlucky", {
+                    version,
+                    source,
+                    mainFile,
+                    size: zipFile.size,
+                });
                 return res.status(200).send({
                     status: "ERROR",
                     message: "Your request could not be served at this time. Please try again later"
                 });
             }
+            const logger = baseLogger.WITH({
+                namespace: namespace.id,
+                version,
+                source,
+                mainFile,
+                size: zipFile.size,
+            });
+            logger.INFO("Received request");
+
+            // Ensure there is only file being sent.
             const zipFilename = path.join(namespace.directory, zipFile.originalname)
             try {
                 await fs.writeFile(zipFilename, zipFile.buffer);
-            } catch (error) {
+            } catch (error: unknown) {
+                const errorBody = objectifyError(error);
                 logger.ERROR("Error writing the zip file to a zip directory", {
-                    namespace, error: JSON.stringify(error)
+                    namespace: namespace.id, ...errorBody
                 });
                 return res.status(200).send({
                     status: "ERROR",
@@ -131,7 +135,12 @@ export function makeCheckHandler(
             // Create a directory to extract the source files from the zip into.
             try {
                 new AdmZip(zipFilename).extractAllTo(namespace.directory);
-            } catch {
+            } catch (e: unknown) {
+                const errorBody = objectifyError(e);
+                logger.ERROR("ERROR: failed to extract source file", {
+                    namespace: namespace.id,
+                    ...errorBody
+                });
                 return res.status(200).send({
                     status: "ERROR",
                     message: "Failed to extract files from the submitted source zip"
@@ -140,7 +149,12 @@ export function makeCheckHandler(
             jobRunner.register(async () => {
                 // Run the Harmony model checker.
                 const response = await containerizedHarmonyRun(namespace, logger);
-                cleanup(namespace, logger);
+                cleanup(namespace).catch(e => {
+                    const errorBody = objectifyError(e);
+                    logger.ERROR("ERROR: failed to cleanup namespace", {
+                        ...errorBody
+                    })
+                });
                 if (response.code === 200) {
                     res.status(response.code).send(response);
                 } else {
