@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import express from 'express';
+import io from '@pm2/io';
 import rateLimit from 'express-rate-limit';
 import bodyParser from 'body-parser';
 import fsSync from "fs";
@@ -39,7 +40,15 @@ async function buildApp() {
     app.get('/', async (req, res) => {
         return res.redirect("https://harmony.cs.cornell.edu/");
     });
-    app.get('/download/:id', rateLimit({
+
+    const downloadCounter = io.counter({
+        name: "Download Counter",
+        id: "app.requests.download.full.count"
+    });
+    app.get('/download/:id', (_, __, next) => {
+        downloadCounter.inc();
+        next();
+    }, rateLimit({
         windowMs: 20 * 60 * 1000,
         max: 100,
     }), async (req, res) => {

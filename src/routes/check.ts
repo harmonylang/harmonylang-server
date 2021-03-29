@@ -8,6 +8,7 @@ import {JobQueueRunner} from "../util/jobQueueRunner";
 import multer from "multer";
 import rateLimit from "express-rate-limit";
 import {objectifyError} from "../util/isError";
+import io from "@pm2/io";
 
 
 type CheckRequest = {
@@ -75,7 +76,20 @@ export function makeCheckHandler(
     jobRunner: JobQueueRunner,
     baseLogger: HarmonyLogger
 ) {
+    const checkRequestCounter = io.counter({
+        name: "Check Requests",
+        id: "app.requests.check.full.count"
+    });
+    const checkSuccessCounter = io.counter({
+        name: "Check Successful Requests",
+        id: "app.requests.check.success.count"
+    });
+
     return [
+        (_: express.Request, __: express.Response, next: express.NextFunction) => {
+            checkRequestCounter.inc();
+            next();
+        },
         rateLimit({
             windowMs: 15 * 60 * 1000, // 15 minutes
             max: 100 // limit each IP to 100 requests per windowMs
@@ -148,17 +162,25 @@ export function makeCheckHandler(
             }
             jobRunner.register(async () => {
                 // Run the Harmony model checker.
-                const response = await containerizedHarmonyRun(namespace, logger);
-                cleanup(namespace).catch(e => {
+                try {
+                    const response = await containerizedHarmonyRun(namespace, logger);
+                    cleanup(namespace).catch(e => {
+                        const errorBody = objectifyError(e);
+                        logger.ERROR("ERROR: failed to cleanup namespace", {
+                            ...errorBody
+                        })
+                    });
+                    checkSuccessCounter.inc();
+                    if (response.code === 200) {
+                        res.status(response.code).send(response);
+                    } else {
+                        res.status(response.code).send(response.message);
+                    }
+                } catch (e: unknown) {
                     const errorBody = objectifyError(e);
-                    logger.ERROR("ERROR: failed to cleanup namespace", {
+                    logger.ERROR("Unknown error occurred in code runner", {
                         ...errorBody
-                    })
-                });
-                if (response.code === 200) {
-                    res.status(response.code).send(response);
-                } else {
-                    res.status(response.code).send(response.message);
+                    });
                 }
             });
         }
