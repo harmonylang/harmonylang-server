@@ -113,7 +113,7 @@ export async function containerizedHarmonyRun(
         return {
             code: 200,
             status: "ERROR",
-            message: e.message.startsWith("Command failed") ?
+            message: e.message.startsWith("Command failed") || e.message.startsWith("Traceback") ?
                 runResult.stdout : "Unknown error encountered",
         };
     }
