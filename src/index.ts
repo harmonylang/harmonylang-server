@@ -33,9 +33,10 @@ async function buildApp() {
         logClient.WARN("Warning: failed to delete public directory.");
     }
 
+    const AWS_HTTP_HOST = AWS_HTTP_ENDPOINT.slice("https://".length)
     async function awsServerIsAlive() {
         try {
-            const response = await ping.promise.probe(AWS_HTTP_ENDPOINT.slice("https://".length));
+            const response = await ping.promise.probe(AWS_HTTP_HOST);
             return response.alive;
         } catch {
             return false;
