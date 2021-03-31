@@ -35,7 +35,7 @@ async function buildApp() {
 
     async function awsServerIsAlive() {
         try {
-            const response = await ping.promise.probe(AWS_HTTP_ENDPOINT);
+            const response = await ping.promise.probe(AWS_HTTP_ENDPOINT.slice("https://".length));
             return response.alive;
         } catch {
             return false;
@@ -94,11 +94,17 @@ async function buildApp() {
             main = pathToMainFile;
         }
         if (main == null) {
-            return res.status(400).send("No main file was declared");
+            return res.send({
+                status: "INTERNAL",
+                message: "No main file was declared"
+            });
         }
         const zippedFile = req.file;
         if (zippedFile == null) {
-            return res.status(400).send("No files were uploaded");
+            return res.send({
+                status: "INTERNAL",
+                message: "No files were uploaded"
+            });
         }
         logger.INFO("Uploaded file metadata", {
             size: zippedFile.size
@@ -110,7 +116,10 @@ async function buildApp() {
         if (namespace == null) {
             logger.WARN("Failed to generate a uuid. May be a sign the uploads directory is too big, or we were" +
                 " severely unlucky");
-            return res.status(400).send("Your request could not be served at this time. Please try again later");
+            return res.send({
+                status: "INTERNAL",
+                message: "Your request could not be served at this time. Please try again"
+            });
         }
 
         // Create a directory to hold the zip file.
@@ -121,7 +130,10 @@ async function buildApp() {
             logger.ERROR("Error making an empty zip directory", {
                 namespace, error
             });
-            return res.sendStatus(500)
+            return res.send({
+                status: "INTERNAL",
+                message: "Error uploading Harmony files"
+            });
         }
 
         // Write the zip file to the zip directory.
@@ -132,7 +144,10 @@ async function buildApp() {
             logger.ERROR("Error writing the zip file to a zip directory", {
                 namespace, error
             });
-            return res.sendStatus(500);
+            return res.send({
+                status: "INTERNAL",
+                message: "Error uploading Harmony files"
+            });
         }
 
         // Create a directory to extract the source files from the zip into.

@@ -71,16 +71,21 @@ export function runHarmony(
             namespace: path.basename(namespaceDirectory),
             error: JSON.stringify(error) ?? ""
         });
-        return res.sendStatus(500);
+        return res.send({
+            status: "INTERNAL",
+            message: "Error loading Harmony compiler"
+        });
     }
     const harmonyFile = filename;
     if (!fs.existsSync(harmonyFile) || !fs.statSync(harmonyFile).isFile()) {
         logger.ERROR("Filename does not exist", {
-            harmonyFile, code: 404, namespace: path.basename(namespaceDirectory)
+            harmonyFile, code: 200, namespace: path.basename(namespaceDirectory)
         });
-        res.sendStatus(404);
         cleanup(namespaceDirectory, logger);
-        return;
+        return res.send({
+            status: "INTERNAL",
+            message: "Filename does not exist: " + harmonyFile
+        });
     }
 
     child_process.execFile('./harmony', [harmonyFile], {
@@ -133,7 +138,10 @@ export function runHarmony(
                     stdout: stdout ?? "[none]",
                     stderr: stderr ?? "[none]",
                 })
-                res.sendStatus(500);
+                res.send({
+                    status: "INTERNAL",
+                    message: stdout
+                })
             }
         }
         cleanup(namespaceDirectory, logger);
