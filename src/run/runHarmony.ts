@@ -110,7 +110,7 @@ export function runHarmony(
                     const responseBody: Record<string, unknown> = {status: "FAILURE", jsonData: results};
                     const didSaveHTML = saveHarmonyHTML(namespaceDirectory, logger);
                     if (didSaveHTML) {
-                        responseBody.staticHtmlLocation = `/html_results/${path.basename(namespaceDirectory)}.html`;
+                        responseBody.staticHtmlLocation = `/download/${path.basename(namespaceDirectory)}`;
                         responseBody.duration = HTML_DURATION;
                     }
                     res.send(responseBody);

@@ -7,6 +7,7 @@ import fsSync from "fs";
 import {AWS_HTTP_ENDPOINT, HTML_RESULTS_DIR, PUBLIC_DIR, UPLOADS_DIR} from "./config";
 import multer from 'multer';
 import {logClient} from "./logger/logs";
+import ping from 'ping';
 import rimraf from "rimraf";
 import cors from 'cors';
 import AdmZip from "adm-zip";
@@ -31,28 +32,52 @@ async function buildApp() {
     } catch (e) {
         logClient.WARN("Warning: failed to delete public directory.");
     }
-    app.get('/html_results/:id',  async (req, res) => {
-        return res.redirect(AWS_HTTP_ENDPOINT + '/html_results/' + req.params.id);
-    });
+
+    async function awsServerIsAlive() {
+        try {
+            const response = await ping.promise.probe(AWS_HTTP_ENDPOINT);
+            return response.alive;
+        } catch {
+            return false;
+        }
+    }
+
+    app.get('/html_results/:id',  async (req, res, next) => {
+        if (await awsServerIsAlive()) {
+            return res.redirect(AWS_HTTP_ENDPOINT + '/html_results/' + req.params.id);
+        }
+        next();
+    }, express.static(PUBLIC_DIR));
 
     app.get('/', async (req, res) => {
-        return res.redirect(AWS_HTTP_ENDPOINT + "/");
+        if (await awsServerIsAlive()) {
+            return res.redirect(AWS_HTTP_ENDPOINT + "/");
+        }
+        return res.redirect("https://harmony.cs.cornell.edu");
     });
 
-    app.get('/home', (_, res) => {
-        return res.redirect(AWS_HTTP_ENDPOINT + "/");
+    app.get('/home', async (_, res) => {
+        if (await awsServerIsAlive()) {
+            return res.redirect(AWS_HTTP_ENDPOINT + "/");
+        }
+        return res.redirect("https://harmony.cs.cornell.edu");
     });
 
-    app.get('/download/:id', (req, res) => {
-        return res.redirect(AWS_HTTP_ENDPOINT + "/download/" + req.params.id);
-    })
+    app.get('/download/:id', async (req, res) => {
+        if (await awsServerIsAlive()) {
+            return res.redirect(AWS_HTTP_ENDPOINT + "/download/" + req.params.id);
+        }
+        return res.download(path.join(HTML_RESULTS_DIR, req.params.id + ".html"));
+    });
 
     app.post("/check", upload.single("file"), async (req, res) => {
-        // return res.redirect(308, AWS_HTTP_ENDPOINT + "/check");
+        if (await awsServerIsAlive()) {
+            return res.redirect(308, AWS_HTTP_ENDPOINT + "/check");
+        }
         const {main: pathToMainFile, version, source} = req.body;
         const logger = logClient
-        .WITH({id: generateNamespace(() => true) ?? ""})
-        .WITH({version: version ?? "", source: source ?? ""})
+            .WITH({id: generateNamespace(() => true) ?? ""})
+            .WITH({version: version ?? "", source: source ?? ""})
 
         logger.INFO("Received request");
 
