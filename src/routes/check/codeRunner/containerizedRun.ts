@@ -1,24 +1,13 @@
-import {HarmonyLogger} from "../../analytics/logger";
-import {HTML_RESULTS_DIR, UPLOADS_DIR} from "../../config";
+import {HarmonyLogger} from "../../../analytics/logger";
+import {HTML_RESULTS_DIR, UPLOADS_DIR} from "../../../config";
 import path from "path";
 import * as uuid from "uuid";
 import fs from "fs-extra";
 import rimraf from "rimraf";
-import {executeCommand} from "../../cmd";
-import {objectifyError} from "../../util/isError";
+import {executeCommand} from "../../../cmd";
+import {objectifyError} from "../../../util/isError";
 import io from "@pm2/io";
-
-type RunResponse = {
-    jsonData: Record<string, unknown>;
-    code: 200;
-    status: "FAILURE";
-    staticHtmlLocation?: string;
-    duration?: number;
-} | {
-    status: "SUCCESS" | "ERROR" | "INTERNAL" | "COMPLETED";
-    code: 400 | 500 | 404 | 200;
-    message: string;
-}
+import {CheckResponse} from "../schema";
 
 const HTML_DURATION = 300000 // = 5 * 1000 * 60 (5 minutes)
 
@@ -90,7 +79,7 @@ export function cleanup(namespace: CodeRunnerNamespace): Promise<void> {
 export async function containerizedHarmonyRun(
     namespace: CodeRunnerNamespace,
     logger: HarmonyLogger
-): Promise<RunResponse> {
+): Promise<CheckResponse> {
     if (!fs.existsSync(namespace.mainFile) || !fs.statSync(namespace.mainFile).isFile()) {
         logger.ERROR("Filename does not exist");
         return {
@@ -177,7 +166,7 @@ export async function containerizedHarmonyRun(
         results.issue != null &&
         results.issue !== "No issues"
     ) {
-        const responseBody: RunResponse = {status: "FAILURE", jsonData: results, code: 200};
+        const responseBody: CheckResponse = {status: "FAILURE", jsonData: results, code: 200};
         if (didSaveHTML) {
             responseBody.staticHtmlLocation = `/download/${namespace.id}`;
             responseBody.duration = HTML_DURATION;
