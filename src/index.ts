@@ -7,7 +7,6 @@ import fsSync from "fs";
 import {AWS_HTTP_ENDPOINT, HTML_RESULTS_DIR, PUBLIC_DIR, UPLOADS_DIR} from "./config";
 import multer from 'multer';
 import {logClient} from "./logger/logs";
-import ping from 'ping';
 import rimraf from "rimraf";
 import cors from 'cors';
 import AdmZip from "adm-zip";
@@ -15,6 +14,9 @@ import path from "path";
 import {runHarmony} from "./run/runHarmony";
 import fs from "fs";
 import generateNamespace from "./genNamespace";
+
+import dns from 'dns';
+const ping = require("net-ping");
 
 async function buildApp() {
     const upload = multer();
@@ -34,10 +36,18 @@ async function buildApp() {
     }
 
     const AWS_HTTP_HOST = AWS_HTTP_ENDPOINT.slice("https://".length)
+    const session = ping.createSession();
     async function awsServerIsAlive() {
         try {
-            const response = await ping.promise.probe(AWS_HTTP_HOST);
-            return response.alive;
+            return new Promise<boolean>(resolve => {
+                dns.resolve4(AWS_HTTP_HOST, (err, addresses) => {
+                    if (err || addresses.length === 0) resolve(false);
+                    const ip = addresses[0]
+                    session.pingHost(ip, (err: Error | null) => {
+                        resolve(err == null);
+                    });
+                })
+            })
         } catch {
             return false;
         }
