@@ -13,10 +13,8 @@ import AdmZip from "adm-zip";
 import path from "path";
 import {runHarmony} from "./run/runHarmony";
 import fs from "fs";
+import fetch from 'node-fetch';
 import generateNamespace from "./genNamespace";
-
-import dns from 'dns';
-const ping = require("net-ping");
 
 async function buildApp() {
     const upload = multer();
@@ -35,19 +33,10 @@ async function buildApp() {
         logClient.WARN("Warning: failed to delete public directory.");
     }
 
-    const AWS_HTTP_HOST = AWS_HTTP_ENDPOINT.slice("https://".length)
-    const session = ping.createSession();
     async function awsServerIsAlive() {
         try {
-            return new Promise<boolean>(resolve => {
-                dns.resolve4(AWS_HTTP_HOST, (err, addresses) => {
-                    if (err || addresses.length === 0) resolve(false);
-                    const ip = addresses[0]
-                    session.pingHost(ip, (err: Error | null) => {
-                        resolve(err == null);
-                    });
-                })
-            })
+            const response = await fetch(AWS_HTTP_ENDPOINT + "/");
+            return response.ok;
         } catch {
             return false;
         }
