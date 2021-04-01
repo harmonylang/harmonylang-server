@@ -56,7 +56,7 @@ function makeDockerCommands(
 ): DockerCommands {
     const harmonyFileArg = path.join("..", "code", namespace.mainFilename);
     return {
-        run: `docker run -m="600M" --memory-swap="600M" --cpus=".5" --name ${namespace.id} -v ${namespace.directory}:/code -w /harmony -t anthonyyang/harmony-docker ./wrapper.sh ${harmonyFileArg}`,
+        run: `docker run -m="400M" --memory-swap="400M" --cpus=".5" --name ${namespace.id} -v ${namespace.directory}:/code -w /harmony -t anthonyyang/harmony-docker ./wrapper.sh ${harmonyFileArg}`,
         getJSON: `docker cp ${namespace.id}:/harmony/charm.json ${namespace.charmJSON}`,
         getHTML: `docker cp ${namespace.id}:/harmony/harmony.html ${namespace.htmlFile}`,
         clean: `docker container rm --force ${namespace.id}`
@@ -103,7 +103,7 @@ export async function containerizedHarmonyRun(
             stdout: runResult.stdout,
             stderr: runResult.stderr,
         });
-        let status: "SUCCESS" | "ERROR" | "INTERNAL" | "COMPLETED" | "TIMEOUT" | "OUT OF MEMORY";
+        let status: "ERROR" | "TIMEOUT" | "OUT OF MEMORY";
         if (e.code === 137) {
             status = "OUT OF MEMORY";
         } else if (e.code === 255) {
@@ -112,10 +112,11 @@ export async function containerizedHarmonyRun(
             status = "ERROR";
         }
         await executeCommand(dockerCommands.clean, {timeout: 20000});
+        console.log(status + "\n" + runResult.stdout);
         return {
             status,
             code: 200,
-            message: runResult.stdout,
+            message: status + "\n" + runResult.stdout,
         };
     }
 
@@ -139,7 +140,7 @@ export async function containerizedHarmonyRun(
         return {
             code: 200,
             status: "INTERNAL",
-            message: "Failed to create Harmony model"
+            message: "INTERNAL" + "\n" +"Failed to create Harmony model"
         };
     }
 
@@ -186,6 +187,6 @@ export async function containerizedHarmonyRun(
         }
         return responseBody;
     } else {
-        return {code: 200, status: 'COMPLETED', message: runResult.stdout};
+        return {code: 200, status: 'COMPLETED', message: "COMPLETED\n" + runResult.stdout};
     }
 }

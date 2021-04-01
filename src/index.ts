@@ -68,7 +68,7 @@ async function buildApp() {
         });
     });
 
-    const queueRunner = BuildJobQueueRunner(1);
+    const queueRunner = BuildJobQueueRunner(2);
     app.post("/check", makeCheckHandler(upload, queueRunner, logClient));
 
     return app;
