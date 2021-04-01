@@ -89,7 +89,7 @@ export async function containerizedHarmonyRun(
         };
     }
     const dockerCommands = makeDockerCommands(namespace);
-    const runResult = await executeCommand(dockerCommands.run, {timeout: 40000});
+    const runResult = await executeCommand(dockerCommands.run, {timeout: 30000});
     if (runResult.error) {
         const e = runResult.error
         logger.INFO("Process led to error", {
@@ -103,12 +103,19 @@ export async function containerizedHarmonyRun(
             stdout: runResult.stdout,
             stderr: runResult.stderr,
         });
+        let status: "SUCCESS" | "ERROR" | "INTERNAL" | "COMPLETED" | "TIMEOUT" | "OUT OF MEMORY";
+        if (e.code === 137) {
+            status = "OUT OF MEMORY";
+        } else if (e.code === 255) {
+            status = "TIMEOUT";
+        } else {
+            status = "ERROR";
+        }
         await executeCommand(dockerCommands.clean, {timeout: 20000});
         return {
+            status,
             code: 200,
-            status: "ERROR",
-            message: e.message.startsWith("Command failed") || e.message.startsWith("Traceback") ?
-                runResult.stdout : "Unknown error encountered",
+            message: runResult.stdout,
         };
     }
 

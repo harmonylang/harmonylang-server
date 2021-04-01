@@ -36,7 +36,7 @@ function parseRequestBody(req: express.Request): CheckRequest {
         return {
             mainFile: main,
             zipFile: req.file,
-            version: "", source: "",
+            version: version ?? "", source: "",
         }
     }
     if (source === 'web-ide') {
