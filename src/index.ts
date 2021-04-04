@@ -1,12 +1,13 @@
+import path from "path";
+import {ENV_PATH, HTML_RESULTS_DIR, PUBLIC_DIR} from "./config";
 import dotenv from 'dotenv';
-dotenv.config();
+dotenv.config({path: ENV_PATH});
 
 import express from 'express';
 import io from '@pm2/io';
 import rateLimit from 'express-rate-limit';
 import bodyParser from 'body-parser';
 import fsSync from "fs";
-import {HTML_RESULTS_DIR, PUBLIC_DIR} from "./config";
 import multer from 'multer';
 import {logClient} from "./analytics/logger";
 import rimraf from "rimraf";
@@ -15,7 +16,6 @@ import https from 'https';
 import {BuildJobQueueRunner} from "./util/jobQueueRunner";
 import {makeCheckHandler} from "./routes/check";
 import isUUID from "uuid-validate";
-import path from "path";
 import fs from "fs";
 
 

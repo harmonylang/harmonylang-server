@@ -1,6 +1,7 @@
 import * as path from "path";
 
 const PROJECT_DIR = path.resolve(path.join(__dirname, ".."));
+export const ENV_PATH = path.join(PROJECT_DIR, ".env");
 export const UPLOADS_DIR = path.join(PROJECT_DIR, "uploads");
 
 export const PUBLIC_DIR = path.join(PROJECT_DIR, "public");
