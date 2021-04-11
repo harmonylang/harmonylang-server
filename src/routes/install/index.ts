@@ -13,9 +13,9 @@ export function makeInstallHarmonyHandler() {
         async function(req: express.Request, res: express.Response) {
             const version = req.params.version;
             if (version == null || version === "" || version === "latest") {
-                res.redirect("https://harmony.cs.cornell.edu/distribution/harmony-1.1.zip");
+                res.redirect("https://harmony.cs.cornell.edu/distributions/harmony-1.1.zip");
             } else if (version != null) {
-                res.redirect(`https://harmony.cs.cornell.edu/distribution/harmony-${version}.zip`);
+                res.redirect(`https://harmony.cs.cornell.edu/distributions/harmony-${version}.zip`);
             } else {
                 res.sendStatus(404);
             }
