@@ -4,7 +4,7 @@ type Job = () => Promise<void>;
 
 export interface JobQueueRunner {
     register(e: Job): void;
-    wait(): void;
+    wait(): Promise<void>;
 }
 
 /**

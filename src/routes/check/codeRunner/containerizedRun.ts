@@ -8,6 +8,7 @@ import {executeCommand} from "../../../cmd";
 import {objectifyError} from "../../../util/isError";
 import io from "@pm2/io";
 import {CheckResponse} from "../schema";
+import parseOptions from "./parseOptions";
 
 const HTML_DURATION = 300000 // = 5 * 1000 * 60 (5 minutes)
 
@@ -53,10 +54,12 @@ export function createNamespace(mainFilename: string): CodeRunnerNamespace | nul
 
 function makeDockerCommands(
     namespace: CodeRunnerNamespace,
+    options?: string
 ): DockerCommands {
     const harmonyFileArg = path.join("..", "code", namespace.mainFilename);
+    const compilerOptions = parseOptions(options);
     return {
-        run: `docker run -m="400M" --memory-swap="400M" --cpus=".5" --name ${namespace.id} -v ${namespace.directory}:/code -w /harmony -t anthonyyang/harmony-docker ./wrapper.sh ${harmonyFileArg}`,
+        run: `docker run -m="400M" --memory-swap="400M" --cpus=".5" --name ${namespace.id} -v ${namespace.directory}:/code -w /harmony -t anthonyyang/harmony-docker ./wrapper.sh ${compilerOptions} ${harmonyFileArg}`,
         getJSON: `docker cp ${namespace.id}:/harmony/charm.json ${namespace.charmJSON}`,
         getHTML: `docker cp ${namespace.id}:/harmony/harmony.html ${namespace.htmlFile}`,
         clean: `docker container rm --force ${namespace.id}`
@@ -78,7 +81,8 @@ export function cleanup(namespace: CodeRunnerNamespace): Promise<void> {
 
 export async function containerizedHarmonyRun(
     namespace: CodeRunnerNamespace,
-    logger: HarmonyLogger
+    logger: HarmonyLogger,
+    options?: string
 ): Promise<CheckResponse> {
     if (!fs.existsSync(namespace.mainFile) || !fs.statSync(namespace.mainFile).isFile()) {
         logger.ERROR("Filename does not exist");
@@ -88,7 +92,18 @@ export async function containerizedHarmonyRun(
             code: 200,
         };
     }
-    const dockerCommands = makeDockerCommands(namespace);
+    let dockerCommands: DockerCommands
+    try {
+        dockerCommands = makeDockerCommands(namespace, options);
+    } catch (e) {
+        const err = objectifyError(e);
+        return {
+            code: 200,
+            status: "ERROR",
+            message: err.message,
+        }
+    }
+
     const runResult = await executeCommand(dockerCommands.run, {timeout: 30000});
     if (runResult.error) {
         const e = runResult.error

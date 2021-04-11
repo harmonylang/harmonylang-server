@@ -16,10 +16,27 @@ export function objectifyError(e: unknown): {
     errorMessage: string;
     errorName: string;
     stack: string;
-} | {error: string} {
-    return e instanceof Error ? {
-        errorMessage: e.message,
-        errorName: e.name,
-        stack: e.stack ?? "",
-    } : {error: JSON.stringify(e) ?? "unknown"};
+    analysis: "complete";
+    message: string,
+} | {
+    error: string;
+    message: string;
+    analysis: "partial"
+} {
+    if (e instanceof Error) {
+        return {
+            errorMessage: e.message,
+            errorName: e.name,
+            stack: e.stack ?? "",
+            analysis: "complete",
+            message: e.message
+        };
+    } else {
+        const message = JSON.stringify(e) ?? "unknown";
+        return {
+            error: message,
+            message: message,
+            analysis: "partial",
+        };
+    }
 }

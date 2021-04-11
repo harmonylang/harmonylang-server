@@ -16,37 +16,59 @@ type CheckRequest = {
     zipFile: Express.Multer.File;
     version: string;
     source: string;
+    options: string;
 }
 
-function parseRequestBody(req: express.Request): CheckRequest {
+type CheckRequestBody = {
+    main: string,
+    version: string,
+    source: string,
+    options: string,
+}
+
+function parseRequestBody(req: express.Request): CheckRequestBody {
     const body = req.body;
+    if (body == null || typeof body !== 'object') {
+        throw new Error("Request body is not an object")
+    }
+    const {main, version, source, options} = body as Record<string, unknown>;
+    return {
+        main: typeof main === 'string' ? main : "",
+        version: typeof version === 'string' ? version : "",
+        source: typeof source === 'string' ? source : "",
+        options: typeof options === 'string' ? options : ""
+    };
+}
+
+function parseRequest(req: express.Request): CheckRequest {
     const file = req.file;
     if (file == null) {
         throw new Error("Request does not contain a file");
     }
-    if (body == null || typeof body !== 'object') {
-        throw new Error("Request body is not an object")
-    }
-    const {main, version, source} = body;
-    if (main == null || typeof main !== 'string') {
+    const {main, version, source, options} = parseRequestBody(req);
+    if (main === "") {
         throw new Error("Request does not declare a main file")
     }
-    if (source == null || typeof source !== 'string') {
+    if (source === "") {
         console.log("Source in the request not declared", "Assuming the main file is a literal string");
         return {
             mainFile: main,
             zipFile: req.file,
-            version: version ?? "", source: "",
+            version: version,
+            options: options,
+            source: source,
         }
     }
     if (source === 'web-ide') {
         return {
             mainFile: JSON.parse(main).join(path.sep),
             zipFile: req.file,
-            source, version: typeof version === 'string' ? version : ""
+            source: source,
+            version: version,
+            options: options,
         };
     } else if (source === 'vscode') {
-        if (version == null || typeof version !== 'string') {
+        if (version === "") {
             throw new Error(`Request from vscode does not defined a version`);
         }
         const parsedVersion = version.split(".").map(v => Number.parseInt(v));
@@ -58,13 +80,17 @@ function parseRequestBody(req: express.Request): CheckRequest {
             return {
                 mainFile: JSON.parse(main).join(path.sep),
                 zipFile: req.file,
-                version, source,
+                version: version,
+                source: source,
+                options: options
             };
         }
         return {
             mainFile: main,
             zipFile: req.file,
-            version, source,
+            version: version,
+            source: source,
+            options: options,
         };
     } else {
         throw new Error(`Request contains an unknown source: ${source}`);
@@ -86,10 +112,6 @@ export function makeCheckHandler(
     });
 
     return [
-        (_: express.Request, __: express.Response, next: express.NextFunction) => {
-            checkRequestCounter.inc();
-            next();
-        },
         rateLimit({
             windowMs: 60 * 1000, // 1 minute
             max: 4, // limit each IP to 4 requests per windowMs
@@ -97,17 +119,21 @@ export function makeCheckHandler(
                 return req.headers['x-forwarded-for'] as string || req.ip;
             }
         }),
+        (_: express.Request, __: express.Response, next: express.NextFunction) => {
+            checkRequestCounter.inc();
+            next();
+        },
         upload.single("file"),
         async function(req: express.Request, res: express.Response) {
             let parsedRequest: CheckRequest;
             try {
-                parsedRequest = parseRequestBody(req);
+                parsedRequest = parseRequest(req);
             } catch (e: unknown) {
                 const errorBody = objectifyError(e);
                 baseLogger.ERROR("Cannot parse request body", errorBody);
                 return res.status(200).send({
                     status: "INTERNAL",
-                    message: "Internal error occurred. Please contact developers"
+                    message: "Internal error occurred. Please contact developers: " + errorBody.message
                 });
             }
             const {version, source, zipFile, mainFile} = parsedRequest;
@@ -166,7 +192,7 @@ export function makeCheckHandler(
             jobRunner.register(async () => {
                 // Run the Harmony model checker.
                 try {
-                    const response = await containerizedHarmonyRun(namespace, logger);
+                    const response = await containerizedHarmonyRun(namespace, logger, parsedRequest.options);
                     cleanup(namespace).catch(e => {
                         const errorBody = objectifyError(e);
                         logger.ERROR("ERROR: failed to cleanup namespace", {
@@ -183,6 +209,10 @@ export function makeCheckHandler(
                     const errorBody = objectifyError(e);
                     logger.ERROR("Unknown error occurred in code runner", {
                         ...errorBody
+                    });
+                    res.send(200).send({
+                        status: "ERROR",
+                        message: errorBody.message
                     });
                 }
             });
