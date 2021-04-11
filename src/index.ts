@@ -17,6 +17,7 @@ import {BuildJobQueueRunner} from "./util/jobQueueRunner";
 import {makeCheckHandler} from "./routes/check";
 import isUUID from "uuid-validate";
 import fs from "fs";
+import {makeInstallHarmonyHandler} from "./routes/install";
 
 
 async function buildApp() {
@@ -70,6 +71,7 @@ async function buildApp() {
 
     const queueRunner = BuildJobQueueRunner(2);
     app.post("/check", makeCheckHandler(upload, queueRunner, logClient));
+    app.get("/distributions/:version", makeInstallHarmonyHandler());
 
     return app;
 }
