@@ -1,12 +1,12 @@
 import {describe, it} from 'mocha';
 import {expect} from "chai";
-import {BuilderQueueRunner} from "../../src/docker/queueRunner";
+import {BuildJobQueueRunner} from "../../src/util/jobQueueRunner";
 
 
-describe('Queue Runner test suite', function () {
+describe('Queue Runner tests suite', function () {
     it('should complete all events', function (done) {
         let completed = 0;
-        const runner = BuilderQueueRunner(1);
+        const runner = BuildJobQueueRunner(1);
         for (let i = 0; i < 10; i++) {
             runner.register(async () => {
                 completed++;
@@ -21,7 +21,7 @@ describe('Queue Runner test suite', function () {
 
     it('should complete all events with multiple runs allowed', function (done) {
         let completed = 0;
-        const runner = BuilderQueueRunner(5);
+        const runner = BuildJobQueueRunner(5);
         for (let i = 0; i < 100; i++) {
             runner.register(async () => {
                 completed++;

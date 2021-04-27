@@ -1,16 +1,21 @@
 import events from 'events';
 
-type Event = () => Promise<void>;
+type Job = () => Promise<void>;
+
+export interface JobQueueRunner {
+    register(e: Job): void;
+    wait(): Promise<void>;
+}
 
 /**
  * A queue runner for running multiple events at some limit.
  * This works because Node runs a single thread at a time in the event loop.
  * @param maxInParallel
  */
-export function BuilderQueueRunner(maxInParallel: number) {
+export function BuildJobQueueRunner(maxInParallel: number): JobQueueRunner {
     let runningProcesses = 0;
     const maximum = Math.max(maxInParallel, 1);
-    const queue: Event[] = [];
+    const queue: Job[] = [];
     const waiting: (() => void)[] = [];
     const eventEmitter = new events.EventEmitter({captureRejections: true});
 
@@ -32,7 +37,7 @@ export function BuilderQueueRunner(maxInParallel: number) {
         }
         eventEmitter.emit("run-next");
     });
-    const register = (event: Event) => {
+    const register = (event: Job) => {
         queue.push(event);
         eventEmitter.emit("run-next");
     }
