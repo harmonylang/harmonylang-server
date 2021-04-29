@@ -76,7 +76,7 @@ function parseRequest(req: express.Request): CheckRequest {
             throw new Error(`The version in the request from vscode is invalid: ${version}`);
         }
         const [major, minor, patch] = parsedVersion;
-        if (major >= 0 && minor >= 2 && patch >= 6) {
+        if (major > 0 || major >= 0 && minor > 2 || major >= 0 && minor >= 2 && patch > 5) {
             return {
                 mainFile: JSON.parse(main).join(path.sep),
                 zipFile: req.file,
