@@ -40,3 +40,10 @@ function makeLogger(kv?: RecordableObject): HarmonyLogger {
 }
 
 export const logClient = makeLogger();
+
+export const silentLogClient: HarmonyLogger = {
+    ERROR(): void {},
+    INFO(): void {},
+    WARN(): void {},
+    WITH(): HarmonyLogger {return this}
+}

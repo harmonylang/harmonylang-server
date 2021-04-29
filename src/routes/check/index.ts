@@ -9,6 +9,7 @@ import multer from "multer";
 import rateLimit from "express-rate-limit";
 import {objectifyError} from "../../util/isError";
 import io from "@pm2/io";
+import PackageVersion from "../../util/packageVersion";
 
 
 type CheckRequest = {
@@ -71,27 +72,28 @@ function parseRequest(req: express.Request): CheckRequest {
         if (version === "") {
             throw new Error(`Request from vscode does not defined a version`);
         }
-        const parsedVersion = version.split(".").map(v => Number.parseInt(v));
-        if (parsedVersion.length !== 3 || parsedVersion.some(v => Number.isNaN(v))) {
-            throw new Error(`The version in the request from vscode is invalid: ${version}`);
-        }
-        const [major, minor, patch] = parsedVersion;
-        if (major > 0 || major >= 0 && minor > 2 || major >= 0 && minor >= 2 && patch > 5) {
+        const packageVersion = new PackageVersion(version);
+        if (packageVersion.isGreaterVersionThan({
+            major: 0,
+            minor: 2,
+            patch: 5
+        }, false)) {
             return {
                 mainFile: JSON.parse(main).join(path.sep),
                 zipFile: req.file,
                 version: version,
                 source: source,
                 options: options
-            };
+            }
+        } else {
+            return {
+                mainFile: main,
+                zipFile: req.file,
+                version: version,
+                source: source,
+                options: options,
+            }
         }
-        return {
-            mainFile: main,
-            zipFile: req.file,
-            version: version,
-            source: source,
-            options: options,
-        };
     } else {
         throw new Error(`Request contains an unknown source: ${source}`);
     }
@@ -192,7 +194,7 @@ export function makeCheckHandler(
             jobRunner.register(async () => {
                 // Run the Harmony model checker.
                 try {
-                    const response = await containerizedHarmonyRun(namespace, logger, parsedRequest.options);
+                    const response = await containerizedHarmonyRun(namespace, mainFile, logger, parsedRequest.options);
                     cleanup(namespace).catch(e => {
                         const errorBody = objectifyError(e);
                         logger.ERROR("ERROR: failed to cleanup namespace", {
