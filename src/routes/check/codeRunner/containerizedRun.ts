@@ -16,7 +16,6 @@ type CodeRunnerNamespace = {
     id: string;
     directory: string;
     mainFile: string;
-    mainFilename: string;
     charmJSON: string;
     htmlFile: string;
 }
@@ -29,8 +28,11 @@ type DockerCommands = {
 }
 
 /**
- * Creates a new namespace for a Harmony program to be run. This returns the namespace id and the directory that can be
- * used to write the files.
+ * Creates a new namespace for a Harmony program to be run. Returns null if a namespace cannot be created.
+ *
+ * This returns the namespace id and the directory that can be used to write the files.
+ * Additionally, it returns unique filenames which can be used to store charmJSON files
+ * and HTML files as a result of running the Harmony program.
  */
 export function createNamespace(mainFilename: string): CodeRunnerNamespace | null {
     const id = uuid.v4();
@@ -40,13 +42,12 @@ export function createNamespace(mainFilename: string): CodeRunnerNamespace | nul
     }
     fs.mkdirSync(directory, {recursive: true});
 
-    const charmJSON = path.join(directory, "charm.json");
+    const charmJSON = path.join(directory, uuid.v4());
     const htmlFile = path.join(HTML_RESULTS_DIR, id + '.html');
     return {
         id,
         directory,
         mainFile: path.join(directory, mainFilename),
-        mainFilename,
         htmlFile,
         charmJSON
     };
@@ -54,9 +55,10 @@ export function createNamespace(mainFilename: string): CodeRunnerNamespace | nul
 
 function makeDockerCommands(
     namespace: CodeRunnerNamespace,
+    mainFilename: string,
     options?: string
 ): DockerCommands {
-    const harmonyFileArg = path.join("..", "code", namespace.mainFilename);
+    const harmonyFileArg = path.join("..", "code", mainFilename);
     const compilerOptions = parseOptions(options);
     return {
         run: `docker run -m="400M" --memory-swap="400M" --cpus=".5" --name ${namespace.id} -v ${namespace.directory}:/code -w /harmony -t anthonyyang/harmony-docker ./wrapper.sh ${compilerOptions} ${harmonyFileArg}`,
@@ -75,12 +77,14 @@ export function cleanup(namespace: CodeRunnerNamespace): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         rimraf(namespace.directory, error => {
             if (error) reject(error);
+            resolve();
         });
     });
 }
 
 export async function containerizedHarmonyRun(
     namespace: CodeRunnerNamespace,
+    mainFilename: string,
     logger: HarmonyLogger,
     options?: string
 ): Promise<CheckResponse> {
@@ -94,7 +98,7 @@ export async function containerizedHarmonyRun(
     }
     let dockerCommands: DockerCommands
     try {
-        dockerCommands = makeDockerCommands(namespace, options);
+        dockerCommands = makeDockerCommands(namespace, mainFilename, options);
     } catch (e) {
         const err = objectifyError(e);
         return {
@@ -194,11 +198,13 @@ export async function containerizedHarmonyRun(
             responseBody.staticHtmlLocation = `/download/${namespace.id}`;
             responseBody.duration = HTML_DURATION;
             numberOfHtmlFilesCounter.inc();
-            const removeHtmlTimeout = setTimeout(() => {
-                fs.remove(namespace.htmlFile).catch(console.log);
-                numberOfHtmlFilesCounter.dec();
-                clearTimeout(removeHtmlTimeout);
-            }, HTML_DURATION);
+            if (!process.env.IS_DEVELOPMENT || process.env.IS_DEVELOPMENT.toLowerCase() !== "true") {
+                const removeHtmlTimeout = setTimeout(() => {
+                    fs.remove(namespace.htmlFile).catch(console.log);
+                    numberOfHtmlFilesCounter.dec();
+                    clearTimeout(removeHtmlTimeout);
+                }, HTML_DURATION);
+            }
         }
         return responseBody;
     } else {
