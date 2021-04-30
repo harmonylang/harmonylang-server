@@ -1,56 +1,22 @@
 import {HarmonyLogger} from "../../../analytics/logger";
-import {HTML_RESULTS_DIR, UPLOADS_DIR} from "../../../config";
+import config from "../../../config";
 import path from "path";
-import * as uuid from "uuid";
 import fs from "fs-extra";
-import rimraf from "rimraf";
 import {executeCommand} from "../../../cmd";
 import {objectifyError} from "../../../util/isError";
 import io from "@pm2/io";
 import {CheckResponse} from "../schema";
 import parseOptions from "./parseOptions";
+import {CodeRunnerNamespace} from "../namespace";
 
 const HTML_DURATION = 300000 // = 5 * 1000 * 60 (5 minutes)
 
-type CodeRunnerNamespace = {
-    id: string;
-    directory: string;
-    mainFile: string;
-    charmJSON: string;
-    htmlFile: string;
-}
 
 type DockerCommands = {
     run: string;
     getJSON: string;
     getHTML: string;
     clean: string;
-}
-
-/**
- * Creates a new namespace for a Harmony program to be run. Returns null if a namespace cannot be created.
- *
- * This returns the namespace id and the directory that can be used to write the files.
- * Additionally, it returns unique filenames which can be used to store charmJSON files
- * and HTML files as a result of running the Harmony program.
- */
-export function createNamespace(mainFilename: string): CodeRunnerNamespace | null {
-    const id = uuid.v4();
-    const directory = path.join(UPLOADS_DIR, id);
-    if (fs.existsSync(directory)) {
-        return null;
-    }
-    fs.mkdirSync(directory, {recursive: true});
-
-    const charmJSON = path.join(directory, uuid.v4());
-    const htmlFile = path.join(HTML_RESULTS_DIR, id + '.html');
-    return {
-        id,
-        directory,
-        mainFile: path.join(directory, mainFilename),
-        htmlFile,
-        charmJSON
-    };
 }
 
 function makeDockerCommands(
@@ -68,21 +34,12 @@ function makeDockerCommands(
     }
 }
 
-const numberOfHtmlFilesCounter = io.counter({
+const numberOfHtmlFilesCounter = config.isProduction() ? io.counter({
     name: "Number of HTML Files",
     id: "app.data.html.count"
-});
+}) : null;
 
-export function cleanup(namespace: CodeRunnerNamespace): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-        rimraf(namespace.directory, error => {
-            if (error) reject(error);
-            resolve();
-        });
-    });
-}
-
-export async function containerizedHarmonyRun(
+export async function run(
     namespace: CodeRunnerNamespace,
     mainFilename: string,
     logger: HarmonyLogger,
@@ -197,11 +154,11 @@ export async function containerizedHarmonyRun(
         if (didSaveHTML) {
             responseBody.staticHtmlLocation = `/download/${namespace.id}`;
             responseBody.duration = HTML_DURATION;
-            numberOfHtmlFilesCounter.inc();
-            if (!process.env.IS_DEVELOPMENT || process.env.IS_DEVELOPMENT.toLowerCase() !== "true") {
+            if (!config.isDevelopment()) {
+                numberOfHtmlFilesCounter?.inc();
                 const removeHtmlTimeout = setTimeout(() => {
                     fs.remove(namespace.htmlFile).catch(console.log);
-                    numberOfHtmlFilesCounter.dec();
+                    numberOfHtmlFilesCounter?.dec();
                     clearTimeout(removeHtmlTimeout);
                 }, HTML_DURATION);
             }
@@ -211,3 +168,5 @@ export async function containerizedHarmonyRun(
         return {code: 200, status: 'COMPLETED', message: "COMPLETED\n" + runResult.stdout};
     }
 }
+
+export default { run };

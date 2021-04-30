@@ -1,30 +1,29 @@
-process.env.IS_DEVELOPMENT = "true";
-
+import config from "../../src/config";
 import {describe, it, afterEach} from 'mocha';
 import {expect} from 'chai';
-import {cleanup, containerizedHarmonyRun, createNamespace} from "../../src/routes/check/codeRunner/containerizedRun";
+import codeRunner from "../../src/routes/check/codeRunner";
 import assert from "assert";
 import * as fs from "fs";
 import path from "path";
 import rimraf from "rimraf";
-import {HTML_RESULTS_DIR, UPLOADS_DIR} from "../../src/config";
 import {silentLogClient} from "../../src/analytics/logger";
+import namespace from "../../src/routes/check/namespace";
 
 describe('Containerized Run Tests', function () {
     describe('Namespace tests', function () {
         afterEach(() => {
-            const directory = fs.opendirSync(UPLOADS_DIR);
+            const directory = fs.opendirSync(config.UPLOADS_DIR);
             while (true) {
                 const entry = directory.readSync();
                 if (!entry) break;
-                rimraf.sync(path.join(UPLOADS_DIR, entry.name));
+                rimraf.sync(path.join(config.UPLOADS_DIR, entry.name));
             }
             directory.closeSync();
         });
 
         it('should create a unique namespace', function () {
             const main = "charm.json";
-            const result = createNamespace(main);
+            const result = namespace.createNamespace(main);
             assert(result);
             const {directory, htmlFile, id, charmJSON, mainFile} = result;
             expect(fs.existsSync(directory)).to.be.true;
@@ -32,17 +31,16 @@ describe('Containerized Run Tests', function () {
             expect(id).equals(path.basename(directory));
             expect(path.dirname(charmJSON)).equals(directory);
             expect(charmJSON).does.not.equal(mainFile);
-            expect(htmlFile).equals(path.join(HTML_RESULTS_DIR, path.basename(directory) + ".html"));
+            expect(htmlFile).equals(path.join(config.HTML_RESULTS_DIR, path.basename(directory) + ".html"));
         });
     });
 
     describe('Cleanup namespace test', function () {
         it('should cleanup created namespaces',  function (done) {
             const main = "charm.json";
-            const result = createNamespace(main);
+            const result = namespace.createNamespace(main);
             assert(result);
-            cleanup(result)
-                .then(() => {
+            result.cleanup().then(() => {
                     const {directory} = result;
                     expect(fs.existsSync(directory)).is.false;
                     done()
@@ -53,11 +51,11 @@ describe('Containerized Run Tests', function () {
 
     describe('Containerized Harmony programs', function () {
         afterEach(() => {
-            const directory = fs.opendirSync(HTML_RESULTS_DIR);
+            const directory = fs.opendirSync(config.HTML_RESULTS_DIR);
             while (true) {
                 const entry = directory.readSync();
                 if (!entry) break;
-                fs.unlinkSync(path.join(HTML_RESULTS_DIR, entry.name));
+                fs.unlinkSync(path.join(config.HTML_RESULTS_DIR, entry.name));
             }
             directory.closeSync();
         })
@@ -65,16 +63,15 @@ describe('Containerized Run Tests', function () {
         it('should run Harmony programs in a container', function (done) {
             this.timeout(6000);
             const mainFile = "main.hny"
-            const namespace = createNamespace(mainFile);
-            assert(namespace);
-            fs.writeFileSync(namespace.mainFile, "assert False\n", 'utf-8');
-            containerizedHarmonyRun(namespace, mainFile, silentLogClient)
+            const codeNamespace = namespace.createNamespace(mainFile);
+            assert(codeNamespace);
+            fs.writeFileSync(codeNamespace.mainFile, "assert False\n", 'utf-8');
+            codeRunner.run(codeNamespace, mainFile, silentLogClient)
                 .then(r => {
-                    cleanup(namespace)
-                    .then(() => {
+                    codeNamespace.cleanup().then(() => {
                         assert(r.status === "FAILURE");
                         assert(r.code === 200);
-                        expect(r.staticHtmlLocation).equals(path.join("/download", path.basename(namespace.directory)))
+                        expect(r.staticHtmlLocation).equals(path.join("/download", path.basename(codeNamespace.directory)))
                         done();
                     }).catch(done)
                 }).catch(done);
@@ -83,13 +80,11 @@ describe('Containerized Run Tests', function () {
         it('should run Harmony programs with flags', function (done) {
             this.timeout(6000);
             const mainFile = "main.hny"
-            const namespace = createNamespace(mainFile);
-            assert(namespace);
-            fs.writeFileSync(namespace.mainFile, "const C = 2\nassert C == 2;", 'utf-8');
-            containerizedHarmonyRun(namespace, mainFile, silentLogClient, " -c C=3 ")
-            .then(r => {
-                cleanup(namespace)
-                .then(() => {
+            const codeNamespace = namespace.createNamespace(mainFile);
+            assert(codeNamespace);
+            fs.writeFileSync(codeNamespace.mainFile, "const C = 2\nassert C == 2;", 'utf-8');
+            codeRunner.run(codeNamespace, mainFile, silentLogClient, " -c C=3 ").then(r => {
+                codeNamespace.cleanup().then(() => {
                     assert(r.status === "FAILURE");
                     done();
                 }).catch(done)

@@ -1,7 +1,7 @@
 import express from "express";
 import {HarmonyLogger} from "../../analytics/logger";
 import path from "path";
-import {cleanup, containerizedHarmonyRun, createNamespace} from "./codeRunner/containerizedRun";
+import codeRunner from "./codeRunner";
 import {promises as fs} from "fs";
 import AdmZip from "adm-zip";
 import {JobQueueRunner} from "../../util/jobQueueRunner";
@@ -10,6 +10,8 @@ import rateLimit from "express-rate-limit";
 import {objectifyError} from "../../util/isError";
 import io from "@pm2/io";
 import PackageVersion from "../../util/packageVersion";
+import namespace from "./namespace";
+import config from "../../config";
 
 
 type CheckRequest = {
@@ -104,14 +106,14 @@ export function makeCheckHandler(
     jobRunner: JobQueueRunner,
     baseLogger: HarmonyLogger
 ) {
-    const checkRequestCounter = io.counter({
+    const checkRequestCounter = config.isProduction() ? io.counter({
         name: "Check Requests",
         id: "app.requests.check.full.count"
-    });
-    const checkSuccessCounter = io.counter({
+    }) : null;
+    const checkSuccessCounter = config.isProduction() ? io.counter({
         name: "Check Successful Requests",
         id: "app.requests.check.success.count"
-    });
+    }) : null;
 
     return [
         rateLimit({
@@ -119,10 +121,13 @@ export function makeCheckHandler(
             max: 4, // limit each IP to 4 requests per windowMs
             keyGenerator(req) {
                 return req.headers['x-forwarded-for'] as string || req.ip;
+            },
+            skip(): boolean {
+                return config.isDevelopment()
             }
         }),
         (_: express.Request, __: express.Response, next: express.NextFunction) => {
-            checkRequestCounter.inc();
+            checkRequestCounter?.inc();
             next();
         },
         upload.single("file"),
@@ -140,8 +145,8 @@ export function makeCheckHandler(
             }
             const {version, source, zipFile, mainFile} = parsedRequest;
 
-            const namespace = createNamespace(mainFile);
-            if (namespace == null) {
+            const codeNamespace = namespace.createNamespace(mainFile);
+            if (codeNamespace == null) {
                 baseLogger.ERROR("Failed to generate namespace. May be a sign that the uploads directory is too" +
                     " big, or we were severely unlucky", {
                     version,
@@ -155,7 +160,7 @@ export function makeCheckHandler(
                 });
             }
             const logger = baseLogger.WITH({
-                namespace: namespace.id,
+                namespace: codeNamespace.id,
                 version,
                 source,
                 mainFile,
@@ -164,13 +169,13 @@ export function makeCheckHandler(
             logger.INFO("Received request");
 
             // Ensure there is only file being sent.
-            const zipFilename = path.join(namespace.directory, zipFile.originalname)
+            const zipFilename = path.join(codeNamespace.directory, zipFile.originalname)
             try {
                 await fs.writeFile(zipFilename, zipFile.buffer);
             } catch (error: unknown) {
                 const errorBody = objectifyError(error);
                 logger.ERROR("Error writing the zip file to a zip directory", {
-                    namespace: namespace.id, ...errorBody
+                    namespace: codeNamespace.id, ...errorBody
                 });
                 return res.status(200).send({
                     status: "ERROR",
@@ -179,11 +184,11 @@ export function makeCheckHandler(
             }
             // Create a directory to extract the source files from the zip into.
             try {
-                new AdmZip(zipFilename).extractAllTo(namespace.directory);
+                new AdmZip(zipFilename).extractAllTo(codeNamespace.directory);
             } catch (e: unknown) {
                 const errorBody = objectifyError(e);
                 logger.ERROR("ERROR: failed to extract source file", {
-                    namespace: namespace.id,
+                    namespace: codeNamespace.id,
                     ...errorBody
                 });
                 return res.status(200).send({
@@ -194,14 +199,14 @@ export function makeCheckHandler(
             jobRunner.register(async () => {
                 // Run the Harmony model checker.
                 try {
-                    const response = await containerizedHarmonyRun(namespace, mainFile, logger, parsedRequest.options);
-                    cleanup(namespace).catch(e => {
+                    const response = await codeRunner.run(codeNamespace, mainFile, logger, parsedRequest.options);
+                    codeNamespace.cleanup().catch(e => {
                         const errorBody = objectifyError(e);
                         logger.ERROR("ERROR: failed to cleanup namespace", {
                             ...errorBody
-                        })
-                    });
-                    checkSuccessCounter.inc();
+                        });
+                    })
+                    checkSuccessCounter?.inc();
                     if (response.code === 200) {
                         res.status(response.code).send(response);
                     } else {

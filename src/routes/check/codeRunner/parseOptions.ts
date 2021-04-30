@@ -20,7 +20,6 @@ export default function parseOptions(options?: string): string {
     const [ns, oddities] = parser.parse_known_args(optionsArg);
     if (oddities.length > 0) {
         const key = oddities[0]
-        console.log(ns, oddities)
         throw new Error("Invalid option used: " + key);
     }
     return Object.entries(ns).filter(([_, v]) => v != null).map(([k, v]) => {

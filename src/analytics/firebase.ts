@@ -1,23 +1,12 @@
 import admin from 'firebase-admin';
 import 'firebase/firestore';
+import config from "../config";
 
-const credentials = {
-    type: "service_account",
-    project_id: "harmonylang-server",
-    private_key_id: process.env.PRIVATE_KEY_ID,
-    private_key: process.env.PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    client_email: process.env.CLIENT_EMAIL,
-    client_id: process.env.CLIENT_ID,
-    client_x509_cert_url: process.env.CLIENT_X509_CERT_URL,
-    auth_uri: "https://accounts.google.com/o/oauth2/auth",
-    token_uri: "https://oauth2.googleapis.com/token",
-    auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-};
 
 // Initialize Firebase
 let firestoreClient: FirebaseFirestore.Firestore | null = null;
 try {
-    if (!process.env.IS_DEVELOPMENT) {
+    if (config.isProduction()) {
         const firebaseConfig = {
             apiKey: "AIzaSyA2rapCh3dOBlHckBh3SfHIqYHEOyvQ0Kc",
             authDomain: "harmonylang-server.firebaseapp.com",
@@ -26,7 +15,7 @@ try {
             messagingSenderId: "455127114629",
             appId: "1:455127114629:web:7a10fe70630010fb3c5aec",
             measurementId: "G-RBD4SXWPS4",
-            credential: admin.credential.cert(credentials as any)
+            credential: admin.credential.cert(config.FIREBASE_CREDENTIALS as any)
         };
         admin.initializeApp(firebaseConfig);
         firestoreClient = admin.firestore();
@@ -40,7 +29,6 @@ try {
 }
 
 const firebaseCollections: Record<string, admin.firestore.CollectionReference> = {};
-const SUPPRESS_LOGS = process.env.SUPPRESS_LOGS && process.env.SUPPRESS_LOGS.toLowerCase() === "true"
 export type RecordableValues = number | string | boolean | Date;
 export type RecordableObject = Record<string, RecordableValues>;
 type CollectionWriter<T extends RecordableObject> = {
@@ -59,7 +47,7 @@ export function makeCollection<T extends RecordableObject>(name: string): Collec
             const collection = firebaseCollections[name]
             if (collection) {
                 collection.add(data).catch(console.log);
-            } else if (!SUPPRESS_LOGS) {
+            } else if (!config.SUPPRESS_LOGS) {
                 console.log(data);
             }
         }

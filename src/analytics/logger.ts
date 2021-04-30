@@ -1,5 +1,5 @@
 import {makeCollection, RecordableObject} from "./firebase";
-import {SERVER_ORIGIN, SERVICE_NAME} from "../config";
+import config from "../config";
 
 const firestoreLogs = makeCollection("harmonylang-logs");
 
@@ -16,8 +16,8 @@ function makeLogger(kv?: RecordableObject): HarmonyLogger {
         return {
             ...keyValues,
             ...kv || {},
-            service: SERVICE_NAME,
-            server: SERVER_ORIGIN,
+            service: config.SERVICE_NAME,
+            server: config.SERVER_ORIGIN,
             timestamp: new Date(),
             message,
             level,
