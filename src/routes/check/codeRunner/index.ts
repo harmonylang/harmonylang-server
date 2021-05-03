@@ -24,12 +24,18 @@ function makeDockerCommands(
     mainFilename: string,
     options?: string
 ): DockerCommands {
-    const harmonyFileArg = path.join("..", "code", mainFilename);
+    const mainBaseFilename = path.basename(mainFilename);
+    const mainBaseName = mainBaseFilename.slice(0, mainBaseFilename.length - path.extname(mainBaseFilename).length);
+    const harmonyFileArg = path.join("/", "code", mainFilename);
+    const srcDirectory = path.dirname(harmonyFileArg);
+    const hcoFile = path.join(srcDirectory, mainBaseName + ".hco");
+    const htmFile = path.join(srcDirectory, mainBaseName + ".htm");
+
     const compilerOptions = parseOptions(options);
     return {
         run: `docker run -m="400M" --memory-swap="400M" --cpus=".5" --name ${namespace.id} -v ${namespace.directory}:/code -w /harmony -t anthonyyang/harmony-docker ./wrapper.sh ${compilerOptions} ${harmonyFileArg}`,
-        getJSON: `docker cp ${namespace.id}:/harmony/charm.json ${namespace.charmJSON}`,
-        getHTML: `docker cp ${namespace.id}:/harmony/harmony.html ${namespace.htmlFile}`,
+        getJSON: `docker cp ${namespace.id}:${hcoFile} ${namespace.charmJSON}`,
+        getHTML: `docker cp ${namespace.id}:${htmFile} ${namespace.htmlFile}`,
         clean: `docker container rm --force ${namespace.id}`
     }
 }
@@ -165,7 +171,9 @@ export async function run(
         }
         return responseBody;
     } else {
-        return {code: 200, status: 'COMPLETED', message: "COMPLETED\n" + runResult.stdout};
+        const endIndex = runResult.stdout.indexOf('No issues');
+        const output = endIndex >= 0 ? runResult.stdout.slice(0, endIndex) : runResult.stdout;
+        return {code: 200, status: 'COMPLETED', message: "COMPLETED\n" + output};
     }
 }
 
